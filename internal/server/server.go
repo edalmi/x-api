@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -9,37 +8,12 @@ import (
 	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/internal/config"
 	"github.com/edalmi/x-api/internal/handler"
-	memcachedprovider "github.com/edalmi/x-api/internal/memcached"
-	redisprovider "github.com/edalmi/x-api/internal/redis"
-	"github.com/redis/go-redis/v9"
 )
 
 func New(cfg *config.Config) (*Server, error) {
-	if cfg.Cache == nil {
-	}
-
-	var cache internal.Cache
-	if cfg := cfg.Cache; cfg.Provider == "redis" && cfg.Redis != nil {
-		redisCfg, err := cfg.Redis.Config()
-		if err != nil {
-			return nil, err
-		}
-
-		cache = redisprovider.NewCache(redis.NewClient(redisCfg))
-	}
-
-	if cfg := cfg.Cache; cfg.Provider == "memcached" && cfg.Memcached != nil {
-		addr := cfg.Memcached.Addresses
-		if len(addr) == 0 {
-			return nil, errors.New("no addresses")
-		}
-
-		mcCache, err := memcachedprovider.New(addr)
-		if err != nil {
-			return nil, err
-		}
-
-		cache = mcCache
+	cache, err := configureCache(cfg.Cache)
+	if err != nil {
+		return nil, err
 	}
 
 	router := &Server{
@@ -57,9 +31,9 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 type Server struct {
-	adminSrv  *http.Server
-	publicSrv *http.Server
-	cache     internal.Cache
+	publicRouter *http.Server
+	adminRouter  *http.Server
+	cache        internal.Cache
 
 	Users  *handler.User
 	Groups *handler.Group
@@ -67,13 +41,13 @@ type Server struct {
 
 func (s *Server) Listen() error {
 	go func() {
-		if err := s.adminSrv.ListenAndServe(); err != nil {
+		if err := s.publicRouter.ListenAndServe(); err != nil {
 			log.Println(err)
 		}
 	}()
 
 	go func() {
-		if err := s.publicSrv.ListenAndServe(); err != nil {
+		if err := s.adminRouter.ListenAndServe(); err != nil {
 			log.Println(err)
 		}
 	}()
@@ -84,8 +58,8 @@ func (s *Server) Listen() error {
 }
 
 func (s *Server) Close() error {
-	s.adminSrv.Close()
-	s.publicSrv.Close()
+	s.publicRouter.Close()
+	s.adminRouter.Close()
 
 	if c, ok := s.cache.(io.Closer); ok {
 		c.Close()

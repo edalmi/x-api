@@ -4,6 +4,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/internal/config"
@@ -16,8 +19,26 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	logger, err := configureLogger(cfg.Logger)
+	if err != nil {
+		return nil, err
+	}
+
+	pubsub, err := configurePubsub(cfg.Pubsub)
+	if err != nil {
+		return nil, err
+	}
+
+	queue, err := configureQueue(cfg.Queue)
+	if err != nil {
+		return nil, err
+	}
+
 	router := &Server{
-		cache: cache,
+		cache:  cache,
+		logger: logger,
+		pubsub: pubsub,
+		queue:  queue,
 
 		Users: &handler.User{
 			Cache: cache,
@@ -33,13 +54,21 @@ func New(cfg *config.Config) (*Server, error) {
 type Server struct {
 	publicRouter *http.Server
 	adminRouter  *http.Server
-	cache        internal.Cache
+
+	logger internal.Logger
+	cache  internal.Cache
+	pubsub internal.Pubsub
+	queue  internal.Queue
 
 	Users  *handler.User
 	Groups *handler.Group
 }
 
-func (s *Server) Listen() error {
+func (s *Server) Start() error {
+	c := make(chan os.Signal, 1)
+
+	signal.Notify(c, syscall.SIGINT)
+
 	go func() {
 		if err := s.publicRouter.ListenAndServe(); err != nil {
 			log.Println(err)
@@ -53,6 +82,8 @@ func (s *Server) Listen() error {
 	}()
 
 	defer s.Close()
+
+	<-c
 
 	return nil
 }

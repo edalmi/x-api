@@ -29,11 +29,26 @@ type Listen struct {
 	Port int `mapstructure:"port"`
 }
 
+type Pubsub struct {
+	Provider string `mapstructure:"provider"`
+}
+
+type Queue struct {
+	Provider string `mapstructure:"provider"`
+}
+
+type Logger struct {
+	Provider string `mapstructure:"provider"`
+}
+
 type Config struct {
-	Admin  *Listen
-	Public *Listen
-	Cache  *Cache `mapstructure:"cache"`
-	TLS    *TLS   `mapstructure:"tls"`
+	Admin  *Listen `mapstructure:"admin"`
+	Public *Listen `mapstructure:"public"`
+	Cache  *Cache  `mapstructure:"cache"`
+	TLS    *TLS    `mapstructure:"tls"`
+	Pubsub *Pubsub `mapstructure:"pubsub"`
+	Logger *Logger `mapstructure:"logger"`
+	Queue  *Queue  `mapstructure:"queue"`
 }
 
 type Cache struct {

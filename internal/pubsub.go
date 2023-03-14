@@ -1,3 +1,3 @@
 package internal
 
-type Notifier interface{}
+type Pubsub interface{}

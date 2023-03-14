@@ -1,6 +1,18 @@
 package config
 
-import "github.com/redis/go-redis/v9"
+import (
+	"github.com/redis/go-redis/v9"
+	"github.com/spf13/viper"
+)
+
+func New(v *viper.Viper) (*Config, error) {
+	cfg := Config{}
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
 
 type Config struct {
 	Cache *Cache `mapstructure:"cache"`
@@ -24,7 +36,7 @@ func (r Redis) Config() (*redis.Options, error) {
 		Addr:     r.Address,
 		Password: r.Password,
 		DB:       r.DB,
-	}
+	}, nil
 }
 
 type Memcached struct {
@@ -32,7 +44,7 @@ type Memcached struct {
 }
 
 type TLS struct {
-	CACert []string `mapstructure:"ca_cert"`
+	CACert []string `mapstructure:"ca-cert"`
 	Cert   []string `mapstructure:"cert"`
 	Key    []string `mapstructure:"key"`
 }

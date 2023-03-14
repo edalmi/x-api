@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"github.com/edalmi/x-api/internal/cmd"
+)
 
 func main() {
-	fmt.Println("Hello, world")
+	if err := cmd.NewCmdRoot().Execute(); err != nil {
+		panic(err)
+	}
 }

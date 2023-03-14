@@ -1,4 +1,4 @@
-package router
+package server
 
 import (
 	"errors"
@@ -11,9 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func NewRouter(cfg *config.Config) (*Router, error) {
+func New(cfg *config.Config) (*Server, error) {
 	if cfg.Cache == nil {
-		// Use in memory cache
 	}
 
 	var cache internal.Cache
@@ -40,7 +39,7 @@ func NewRouter(cfg *config.Config) (*Router, error) {
 		cache = mcCache
 	}
 
-	router := &Router{
+	router := &Server{
 		Users: &handler.User{
 			Cache: cache,
 		},
@@ -52,7 +51,7 @@ func NewRouter(cfg *config.Config) (*Router, error) {
 	return router, nil
 }
 
-type Router struct {
+type Server struct {
 	Users  *handler.User
 	Groups *handler.Group
 }

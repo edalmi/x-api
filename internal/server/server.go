@@ -2,6 +2,9 @@ package server
 
 import (
 	"errors"
+	"io"
+	"log"
+	"net/http"
 
 	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/internal/config"
@@ -40,6 +43,8 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	router := &Server{
+		cache: cache,
+
 		Users: &handler.User{
 			Cache: cache,
 		},
@@ -52,6 +57,39 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 type Server struct {
+	adminSrv  *http.Server
+	publicSrv *http.Server
+	cache     internal.Cache
+
 	Users  *handler.User
 	Groups *handler.Group
+}
+
+func (s *Server) Listen() error {
+	go func() {
+		if err := s.adminSrv.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	go func() {
+		if err := s.publicSrv.ListenAndServe(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	defer s.Close()
+
+	return nil
+}
+
+func (s *Server) Close() error {
+	s.adminSrv.Close()
+	s.publicSrv.Close()
+
+	if c, ok := s.cache.(io.Closer); ok {
+		c.Close()
+	}
+
+	return nil
 }

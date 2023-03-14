@@ -6,7 +6,7 @@ import (
 )
 
 func New(v *viper.Viper) (*Config, error) {
-	cfg := Config{}
+	cfg := DefaultConfig()
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
@@ -14,9 +14,26 @@ func New(v *viper.Viper) (*Config, error) {
 	return &cfg, nil
 }
 
+func DefaultConfig() Config {
+	return Config{
+		Admin: &Listen{
+			Port: 11234,
+		},
+		Public: &Listen{
+			Port: 11235,
+		},
+	}
+}
+
+type Listen struct {
+	Port int `mapstructure:"port"`
+}
+
 type Config struct {
-	Cache *Cache `mapstructure:"cache"`
-	TLS   *TLS   `mapstructure:"tls"`
+	Admin  *Listen
+	Public *Listen
+	Cache  *Cache `mapstructure:"cache"`
+	TLS    *TLS   `mapstructure:"tls"`
 }
 
 type Cache struct {

@@ -59,7 +59,9 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	srvMetrics, err := configureHTTP(cfg.Metrics, promhttp.Handler())
+	metrics := http.NewServeMux()
+	metrics.HandleFunc("/", promhttp.Handler())
+	srvMetrics, err := configureHTTP(cfg.Metrics, metrics)
 	if err != nil {
 		return nil, err
 	}

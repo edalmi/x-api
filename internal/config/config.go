@@ -4,6 +4,7 @@ import "github.com/redis/go-redis/v9"
 
 type Config struct {
 	Cache *Cache `mapstructure:"cache"`
+	TLS   *TLS   `mapstructure:"tls"`
 }
 
 type Cache struct {
@@ -27,7 +28,11 @@ func (r Redis) Config() (*redis.Options, error) {
 }
 
 type Memcached struct {
-	Address  string `mapstructure:"address"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db"`
+	Addresses []string `mapstructure:"addresses"`
+}
+
+type TLS struct {
+	CACert []string `mapstructure:"ca_cert"`
+	Cert   []string `mapstructure:"cert"`
+	Key    []string `mapstructure:"key"`
 }

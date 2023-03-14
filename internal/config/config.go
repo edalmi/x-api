@@ -42,13 +42,14 @@ type Logger struct {
 }
 
 type Config struct {
-	Admin  *Listen `mapstructure:"admin"`
-	Public *Listen `mapstructure:"public"`
-	Cache  *Cache  `mapstructure:"cache"`
-	TLS    *TLS    `mapstructure:"tls"`
-	Pubsub *Pubsub `mapstructure:"pubsub"`
-	Logger *Logger `mapstructure:"logger"`
-	Queue  *Queue  `mapstructure:"queue"`
+	Metrics *Listen `mapstructure:"metrics"`
+	Admin   *Listen `mapstructure:"admin"`
+	Public  *Listen `mapstructure:"public"`
+	Cache   *Cache  `mapstructure:"cache"`
+	TLS     *TLS    `mapstructure:"tls"`
+	Pubsub  *Pubsub `mapstructure:"pubsub"`
+	Logger  *Logger `mapstructure:"logger"`
+	Queue   *Queue  `mapstructure:"queue"`
 }
 
 type Cache struct {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/edalmi/x-api/internal"
+	"github.com/go-chi/chi/v5"
 )
 
 type Group struct {
@@ -18,4 +19,13 @@ func (u Group) DeleteGroup(rw http.ResponseWriter, r *http.Request) {}
 
 func (u Group) GetGroup(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) SetPublicRoute() {}
+func (u Group) PublicRoutes() *chi.Mux {
+	r := chi.NewRouter()
+
+	r.Get("/", u.ListGroups)
+	r.Get("/:id", u.GetGroup)
+	r.Post("/", u.CreateGroup)
+	r.Delete("/", u.DeleteGroup)
+
+	return r
+}

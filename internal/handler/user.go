@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/edalmi/x-api/internal"
+	"github.com/edalmi/x-api"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewUser(opts *internal.Options) *User {
+func NewUser(opts *xapi.Options) *User {
 	return &User{
 		metrics: NewUserMetrics(opts.Metrics),
 		opts:    opts,
@@ -18,7 +18,7 @@ func NewUser(opts *internal.Options) *User {
 
 type User struct {
 	metrics *UserMetrics
-	opts    *internal.Options
+	opts    *xapi.Options
 }
 
 func (u *User) CreateUser(rw http.ResponseWriter, r *http.Request) {
@@ -33,7 +33,7 @@ func (u User) GetUser(rw http.ResponseWriter, r *http.Request) {}
 
 func (u User) UpdateUser(rw http.ResponseWriter, r *http.Request) {}
 
-func (u User) PublicRoutes() *chi.Mux {
+func (u User) Routes() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/", u.ListUsers)

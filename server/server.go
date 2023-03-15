@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/edalmi/x-api/internal"
+	"github.com/edalmi/x-api"
 	"github.com/edalmi/x-api/internal/config"
 	"github.com/edalmi/x-api/internal/handler"
 	"github.com/go-chi/chi/v5"
@@ -37,7 +37,7 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	options := &internal.Options{
+	options := &xapi.Options{
 		Cache:   cache,
 		Pubsub:  pubsub,
 		Queue:   queue,
@@ -49,8 +49,8 @@ func New(cfg *config.Config) (*Server, error) {
 	groups := handler.NewGroup(options)
 
 	apiv1 := chi.NewRouter()
-	apiv1.Mount("/users", users.PublicRoutes())
-	apiv1.Mount("/groups", groups.PublicRoutes())
+	apiv1.Mount("/users", users.Routes())
+	apiv1.Mount("/groups", groups.Routes())
 
 	srvPublic, err := configureHTTP(cfg.Serve.Public, apiv1)
 	if err != nil {
@@ -93,10 +93,10 @@ type adminRouter interface {
 }
 
 type Server struct {
-	logger internal.Logger
-	cache  internal.Cache
-	pubsub internal.Pubsub
-	queue  internal.Queue
+	logger xapi.Logger
+	cache  xapi.Cache
+	pubsub xapi.Pubsub
+	queue  xapi.Queue
 
 	public  *http.Server
 	admin   *http.Server

@@ -3,16 +3,16 @@ package handler
 import (
 	"net/http"
 
-	"github.com/edalmi/x-api/internal"
+	"github.com/edalmi/x-api"
 	"github.com/go-chi/chi/v5"
 )
 
-func NewGroup(_ *internal.Options) *Group {
+func NewGroup(_ *xapi.Options) *Group {
 	return &Group{}
 }
 
 type Group struct {
-	opts internal.Options
+	opts xapi.Options
 }
 
 func (u Group) CreateGroup(rw http.ResponseWriter, r *http.Request) {}
@@ -23,7 +23,7 @@ func (u Group) DeleteGroup(rw http.ResponseWriter, r *http.Request) {}
 
 func (u Group) GetGroup(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) PublicRoutes() *chi.Mux {
+func (u Group) Routes() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/", u.ListGroups)

@@ -1,4 +1,4 @@
-package internal
+package xapi
 
 type Logger interface {
 	Debug(v ...interface{})

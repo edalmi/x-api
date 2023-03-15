@@ -3,14 +3,14 @@ package server
 import (
 	"errors"
 
-	"github.com/edalmi/x-api/internal"
-	"github.com/edalmi/x-api/internal/config"
-	memcachedprovider "github.com/edalmi/x-api/internal/memcached"
-	redisprovider "github.com/edalmi/x-api/internal/redis"
+	"github.com/edalmi/x-api"
+	"github.com/edalmi/x-api/xapi.config"
+	memcachedprovider "github.com/edalmi/x-api/xapi.memcached"
+	redisprovider "github.com/edalmi/x-api/xapi.redis"
 	"github.com/redis/go-redis/v9"
 )
 
-func configureCache(cfg *config.Cache) (internal.Cache, error) {
+func configureCache(cfg *config.Cache) (xapi.Cache, error) {
 	if cfg == nil {
 	}
 

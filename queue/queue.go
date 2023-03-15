@@ -16,9 +16,17 @@ type Message struct {
 }
 
 func (m *Message) Ack() error {
-	return m.AckFunc()
+	if m.AckFunc != nil {
+		return m.AckFunc()
+	}
+
+	return nil
 }
 
 func (m *Message) Nack() error {
-	return m.NackFunc()
+	if m.NackFunc != nil {
+		return m.NackFunc()
+	}
+
+	return nil
 }

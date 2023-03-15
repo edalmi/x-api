@@ -10,18 +10,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	cacheRedis     = "redis"
-	cacheMemcached = "memcached"
-	cacheInMemory  = "inmemory"
-)
-
 func configureCache(cfg *config.Cache) (internal.Cache, error) {
 	if cfg == nil {
-		cfg.Provider = cacheInMemory
 	}
 
-	if cfg.Provider == cacheRedis {
+	if cfg.Redis != nil {
 		if cfg.Redis == nil {
 			return nil, errors.New("error")
 		}
@@ -34,7 +27,7 @@ func configureCache(cfg *config.Cache) (internal.Cache, error) {
 		return redisprovider.NewCache(redis.NewClient(redisCfg)), nil
 	}
 
-	if cfg.Provider == cacheMemcached {
+	if cfg.Memcached != nil {
 		if cfg.Memcached == nil {
 			return nil, errors.New("error")
 		}

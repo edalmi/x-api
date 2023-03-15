@@ -48,20 +48,20 @@ func New(cfg *config.Config) (*Server, error) {
 	apiv1.Mount("/users", users.PublicRoutes())
 	apiv1.Mount("/groups", groups.PublicRoutes())
 
-	srvPublic, err := configureHTTP(cfg.Public, apiv1)
+	srvPublic, err := configureHTTP(cfg.Serve.Public, apiv1)
 	if err != nil {
 		return nil, err
 	}
 
 	adminV1 := chi.NewRouter()
-	srvAdmin, err := configureHTTP(cfg.Admin, adminV1)
+	srvAdmin, err := configureHTTP(cfg.Serve.Admin, adminV1)
 	if err != nil {
 		return nil, err
 	}
 
 	metrics := http.NewServeMux()
 	metrics.HandleFunc("/", promhttp.Handler())
-	srvMetrics, err := configureHTTP(cfg.Metrics, metrics)
+	srvMetrics, err := configureHTTP(cfg.Serve.Metrics, metrics)
 	if err != nil {
 		return nil, err
 	}

@@ -1,13 +1,13 @@
-package postgres
+package sqlite
 
 import (
 	"github.com/edalmi/x-api/database"
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func New(dsn string) (*database.DB, error) {
-	db, err := sqlx.Connect("postgres", dsn)
+	db, err := sqlx.Connect("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}

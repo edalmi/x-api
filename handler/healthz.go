@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewHealthz(_ Options) *Healthz {
+func NewHealthz(_ HandlerOptions) *Healthz {
 	return &Healthz{}
 }
 

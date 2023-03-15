@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewUser(opts Options) *UserHandler {
+func NewUserHandler(opts HandlerOptions) *UserHandler {
 	return &UserHandler{
 		metrics: newUserMetrics(opts.Metrics()),
 		opts:    opts,
@@ -19,7 +19,7 @@ func NewUser(opts Options) *UserHandler {
 
 type UserHandler struct {
 	metrics *userMetrics
-	opts    Options
+	opts    HandlerOptions
 }
 
 func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {

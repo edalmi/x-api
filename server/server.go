@@ -112,8 +112,8 @@ func (s *Server) setupMetrcisServer() error {
 
 func (s *Server) setupPublicServer() error {
 	var (
-		users  = handler.NewUser(s.options)
-		groups = handler.NewGroup(s.options)
+		users  = handler.NewUserHandler(s.options)
+		groups = handler.NewGroupHandler(s.options)
 	)
 
 	router := chi.NewRouter()

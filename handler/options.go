@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Options interface {
+type HandlerOptions interface {
 	Queue() queue.Queue
 	Pubsub() pubsub.Pubsub
 	Cache() caching.Cache

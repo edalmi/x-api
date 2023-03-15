@@ -12,6 +12,7 @@ import (
 	"github.com/edalmi/x-api"
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/handler"
+	"github.com/edalmi/x-api/stdlog"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -46,7 +47,9 @@ func New(cfg *config.Config) (*Server, error) {
 		Cache: cache,
 		//Pubsub:  pubsub,
 		//Queue:   queue,
-		//Logger:  logger,
+		Logger: &stdlog.Logger{
+			Logger: log.Default(),
+		},
 		Metrics: prometheus.NewRegistry(),
 	}
 
@@ -154,6 +157,8 @@ func (s *Server) Start() error {
 
 	signal.Notify(c, syscall.SIGINT)
 
+	s.options.Logger.Info("PID:", os.Getpid())
+
 	go func() {
 		log.Printf("Starting public server at %v", s.public.Addr)
 
@@ -218,30 +223,36 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	defer s.Close()
+	defer func() {
+		s.options.Logger.Info("Shutting down metrics server")
+		if err := s.metrics.Shutdown(context.Background()); err != nil {
+			s.options.Logger.Warn(err)
+		}
+
+		s.options.Logger.Info("Shutting down public server")
+		if err := s.public.Shutdown(context.Background()); err != nil {
+			s.options.Logger.Warn("X", err)
+		}
+
+		s.options.Logger.Info("Shutting down admin server")
+		if err := s.admin.Shutdown(context.Background()); err != nil {
+			s.options.Logger.Warn(err)
+		}
+
+		s.options.Logger.Info("Shutting down healthz server")
+		if err := s.healthz.Shutdown(context.Background()); err != nil {
+			s.options.Logger.Warn(err)
+		}
+
+		s.cleanUp()
+	}()
 
 	<-c
-
-	if err := s.metrics.Shutdown(context.Background()); err != nil {
-		s.options.Logger.Warn(err)
-	}
-
-	if err := s.public.Shutdown(context.Background()); err != nil {
-		s.options.Logger.Warn(err)
-	}
-
-	if err := s.admin.Shutdown(context.Background()); err != nil {
-		s.options.Logger.Warn(err)
-	}
-
-	if err := s.healthz.Shutdown(context.Background()); err != nil {
-		s.options.Logger.Warn(err)
-	}
 
 	return nil
 }
 
-func (s *Server) Close() error {
+func (s *Server) cleanUp() error {
 	if err := s.closeOptions(); err != nil {
 		return err
 	}
@@ -267,18 +278,22 @@ func (s *Server) Close() error {
 
 func (s *Server) closeOptions() error {
 	if c, ok := s.options.Cache.(io.Closer); ok {
+		s.options.Logger.Info("Freeing cache resources")
 		c.Close()
 	}
 
 	if c, ok := s.options.Pubsub.(io.Closer); ok {
+		s.options.Logger.Info("Freeing pubsub resources")
 		c.Close()
 	}
 
 	if c, ok := s.options.Queue.(io.Closer); ok {
+		s.options.Logger.Info("Freeing queue resources")
 		c.Close()
 	}
 
 	if c, ok := s.options.Logger.(io.Closer); ok {
+		s.options.Logger.Info("Freeing logger resources")
 		c.Close()
 	}
 

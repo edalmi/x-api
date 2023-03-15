@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/edalmi/x-api/internal"
-	"github.com/edalmi/x-api/internal/config"
+	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/internal/handler"
 	stdlog "github.com/edalmi/x-api/logging/log"
 	"github.com/go-chi/chi/v5"

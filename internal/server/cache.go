@@ -6,7 +6,7 @@ import (
 	"github.com/edalmi/x-api/caching"
 	memcachedprovider "github.com/edalmi/x-api/caching/memcached"
 	redisprovider "github.com/edalmi/x-api/caching/redis"
-	"github.com/edalmi/x-api/internal/config"
+	"github.com/edalmi/x-api/config"
 	"github.com/redis/go-redis/v9"
 )
 

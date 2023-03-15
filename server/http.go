@@ -1,13 +1,12 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 
-	"github.com/edalmi/x-api/xapi.config"
+	"github.com/edalmi/x-api/config"
 )
 
-func configureHTTP(cfg *config.Server, h http.Handler) (*http.Server, error) {
+func setupHTTPServer(cfg *config.Server, h http.Handler) (*http.Server, error) {
 	return &http.Server{
 		Handler: h,
 	}, nil

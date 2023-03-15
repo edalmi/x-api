@@ -4,9 +4,9 @@ import (
 	"errors"
 
 	"github.com/edalmi/x-api"
-	"github.com/edalmi/x-api/xapi.config"
+	"github.com/edalmi/x-api/config"
 )
 
-func configurePubsub(cfg *config.Pubsub) (xapi.Pubsub, error) {
+func setupPubsub(cfg *config.Pubsub) (xapi.Pubsub, error) {
 	return nil, errors.New("error")
 }

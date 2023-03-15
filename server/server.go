@@ -9,30 +9,30 @@ import (
 	"syscall"
 
 	"github.com/edalmi/x-api"
-	"github.com/edalmi/x-api/internal/config"
-	"github.com/edalmi/x-api/internal/handler"
+	"github.com/edalmi/x-api/config"
+	"github.com/edalmi/x-api/handler"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func New(cfg *config.Config) (*Server, error) {
-	cache, err := configureCache(cfg.Cache)
+	cache, err := setupCache(cfg.Cache)
 	if err != nil {
 		return nil, err
 	}
 
-	logger, err := configureLogger(cfg.Logger)
+	logger, err := setupLogger(cfg.Logger)
 	if err != nil {
 		return nil, err
 	}
 
-	pubsub, err := configurePubsub(cfg.Pubsub)
+	pubsub, err := setupPubsub(cfg.Pubsub)
 	if err != nil {
 		return nil, err
 	}
 
-	queue, err := configureQueue(cfg.Queue)
+	queue, err := setupQueue(cfg.Queue)
 	if err != nil {
 		return nil, err
 	}
@@ -45,43 +45,102 @@ func New(cfg *config.Config) (*Server, error) {
 		Metrics: prometheus.NewRegistry(),
 	}
 
-	users := handler.NewUser(options)
-	groups := handler.NewGroup(options)
-
-	apiv1 := chi.NewRouter()
-	apiv1.Mount("/users", users.Routes())
-	apiv1.Mount("/groups", groups.Routes())
-
-	srvPublic, err := configureHTTP(cfg.Serve.Public, apiv1)
-	if err != nil {
-		return nil, err
-	}
-
-	adminV1 := chi.NewRouter()
-	srvAdmin, err := configureHTTP(cfg.Serve.Admin, adminV1)
-	if err != nil {
-		return nil, err
-	}
-
-	metrics := http.NewServeMux()
-	metrics.HandleFunc("/", promhttp.Handler())
-	srvMetrics, err := configureHTTP(cfg.Serve.Metrics, metrics)
-	if err != nil {
-		return nil, err
-	}
-
 	srv := &Server{
-		cache:  cache,
-		logger: logger,
-		pubsub: pubsub,
-		queue:  queue,
+		cfg:     cfg,
+		options: options,
+	}
 
-		public:  srvPublic,
-		admin:   srvAdmin,
-		metrics: srvMetrics,
+	if err := srv.setupAdminServer(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupPublicServer(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupHealthzServer(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupMetrcisServer(); err != nil {
+		return nil, err
 	}
 
 	return srv, nil
+}
+
+func (s Server) setupHealthzServer() error {
+	handler := handler.NewHealthz(s.options)
+
+	router := chi.NewRouter()
+	router.Mount("/healthz", handler.Routes())
+
+	srv, err := setupHTTPServer(s.cfg.Serve.Healthz, router)
+	if err != nil {
+		return err
+	}
+
+	s.healthz = srv
+
+	return nil
+}
+
+func (s Server) setupMetrcisServer() error {
+	handler := promhttp.HandlerFor(
+		s.options.Metrics.(*prometheus.Registry),
+		promhttp.HandlerOpts{
+			Registry: s.options.Metrics,
+		},
+	)
+
+	srv, err := setupHTTPServer(s.cfg.Serve.Metrics, handler)
+	if err != nil {
+		return err
+	}
+
+	s.metrics = srv
+
+	return nil
+}
+
+func (s Server) setupPublicServer() error {
+	var (
+		users  = handler.NewUser(s.options)
+		groups = handler.NewGroup(s.options)
+	)
+
+	router := chi.NewRouter()
+	router.Mount("/users", users.Routes())
+	router.Mount("/groups", groups.Routes())
+
+	srv, err := setupHTTPServer(s.cfg.Serve.Public, router)
+	if err != nil {
+		return err
+	}
+
+	s.public = srv
+
+	return nil
+}
+
+func (s Server) setupAdminServer() error {
+	var (
+		users  = handler.NewUser(s.options)
+		groups = handler.NewGroup(s.options)
+	)
+
+	router := chi.NewRouter()
+	router.Mount("/users", users.Routes())
+	router.Mount("/groups", groups.Routes())
+
+	srv, err := setupHTTPServer(s.cfg.Serve.Admin, router)
+	if err != nil {
+		return err
+	}
+
+	s.public = srv
+
+	return nil
 }
 
 type publicRouter interface {
@@ -93,11 +152,8 @@ type adminRouter interface {
 }
 
 type Server struct {
-	logger xapi.Logger
-	cache  xapi.Cache
-	pubsub xapi.Pubsub
-	queue  xapi.Queue
-
+	cfg     *config.Config
+	options *xapi.Options
 	public  *http.Server
 	admin   *http.Server
 	metrics *http.Server
@@ -111,28 +167,28 @@ func (s *Server) Start() error {
 
 	go func() {
 		if err := s.admin.ListenAndServe(); err != nil {
-			s.logger.Error(err)
+			s.options.Logger.Error(err)
 			return
 		}
 	}()
 
 	go func() {
 		if err := s.public.ListenAndServe(); err != nil {
-			s.logger.Error(err)
+			s.options.Logger.Error(err)
 			return
 		}
 	}()
 
 	go func() {
 		if err := s.metrics.ListenAndServe(); err != nil {
-			s.logger.Error(err)
+			s.options.Logger.Error(err)
 			return
 		}
 	}()
 
 	go func() {
 		if err := s.healthz.ListenAndServe(); err != nil {
-			s.logger.Error(err)
+			s.options.Logger.Error(err)
 			return
 		}
 	}()
@@ -142,46 +198,62 @@ func (s *Server) Start() error {
 	<-c
 
 	if err := s.metrics.Shutdown(context.Background()); err != nil {
-		s.logger.Warn(err)
+		s.options.Logger.Warn(err)
 	}
 
 	if err := s.public.Shutdown(context.Background()); err != nil {
-		s.logger.Warn(err)
+		s.options.Logger.Warn(err)
 	}
 
 	if err := s.admin.Shutdown(context.Background()); err != nil {
-		s.logger.Warn(err)
+		s.options.Logger.Warn(err)
+	}
+
+	if err := s.healthz.Shutdown(context.Background()); err != nil {
+		s.options.Logger.Warn(err)
 	}
 
 	return nil
 }
 
 func (s *Server) Close() error {
+	if err := s.closeOptions(); err != nil {
+		return err
+	}
+
 	if err := s.admin.Close(); err != nil {
-		s.logger.Error(err)
+		s.options.Logger.Error(err)
 	}
 
 	if err := s.public.Close(); err != nil {
-		s.logger.Error(err)
+		s.options.Logger.Error(err)
 	}
 
 	if err := s.metrics.Close(); err != nil {
-		s.logger.Error(err)
+		s.options.Logger.Error(err)
 	}
 
-	if c, ok := s.cache.(io.Closer); ok {
+	if err := s.healthz.Close(); err != nil {
+		s.options.Logger.Error(err)
+	}
+
+	return nil
+}
+
+func (s *Server) closeOptions() error {
+	if c, ok := s.options.Cache.(io.Closer); ok {
 		c.Close()
 	}
 
-	if c, ok := s.logger.(io.Closer); ok {
+	if c, ok := s.options.Pubsub.(io.Closer); ok {
 		c.Close()
 	}
 
-	if c, ok := s.queue.(io.Closer); ok {
+	if c, ok := s.options.Queue.(io.Closer); ok {
 		c.Close()
 	}
 
-	if c, ok := s.pubsub.(io.Closer); ok {
+	if c, ok := s.options.Logger.(io.Closer); ok {
 		c.Close()
 	}
 

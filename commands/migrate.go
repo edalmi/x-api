@@ -19,7 +19,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/edalmi/x-api/internal/config"
+	"github.com/edalmi/x-api/config"
 	"github.com/spf13/cobra"
 )
 

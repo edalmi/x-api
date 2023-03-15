@@ -16,7 +16,7 @@ func New(v *viper.Viper) (*Config, error) {
 
 func DefaultConfig() Config {
 	return Config{
-		Serve: Servers{
+		Serve: &Servers{
 			Public: &Server{
 				Port: 11230,
 			},

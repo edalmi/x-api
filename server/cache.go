@@ -4,13 +4,13 @@ import (
 	"errors"
 
 	"github.com/edalmi/x-api"
-	"github.com/edalmi/x-api/xapi.config"
-	memcachedprovider "github.com/edalmi/x-api/xapi.memcached"
-	redisprovider "github.com/edalmi/x-api/xapi.redis"
+	"github.com/edalmi/x-api/config"
+	memcachedprovider "github.com/edalmi/x-api/memcached"
+	redisprovider "github.com/edalmi/x-api/redis"
 	"github.com/redis/go-redis/v9"
 )
 
-func configureCache(cfg *config.Cache) (xapi.Cache, error) {
+func setupCache(cfg *config.Cache) (xapi.Cache, error) {
 	if cfg == nil {
 	}
 

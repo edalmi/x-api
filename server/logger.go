@@ -4,9 +4,9 @@ import (
 	"errors"
 
 	"github.com/edalmi/x-api"
-	"github.com/edalmi/x-api/xapi.config"
+	"github.com/edalmi/x-api/config"
 )
 
-func configureLogger(cfg *config.Logger) (xapi.Logger, error) {
+func setupLogger(cfg *config.Logger) (xapi.Logger, error) {
 	return nil, errors.New("error")
 }

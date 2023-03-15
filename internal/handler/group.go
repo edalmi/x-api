@@ -7,8 +7,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func NewGroup(_ *internal.Options) *Group {
+	return &Group{}
+}
+
 type Group struct {
-	Cache internal.Cache
+	opts internal.Options
 }
 
 func (u Group) CreateGroup(rw http.ResponseWriter, r *http.Request) {}

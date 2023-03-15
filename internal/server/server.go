@@ -12,6 +12,7 @@ import (
 	"github.com/edalmi/x-api/internal/config"
 	"github.com/edalmi/x-api/internal/handler"
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -36,13 +37,16 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	users := &handler.User{
-		Cache: cache,
+	options := &internal.Options{
+		Cache:   cache,
+		Pubsub:  pubsub,
+		Queue:   queue,
+		Logger:  logger,
+		Metrics: prometheus.NewRegistry(),
 	}
 
-	groups := &handler.Group{
-		Cache: cache,
-	}
+	users := handler.NewUser(options)
+	groups := handler.NewGroup(options)
 
 	apiv1 := chi.NewRouter()
 	apiv1.Mount("/users", users.PublicRoutes())
@@ -67,13 +71,14 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	srv := &Server{
-		cache:      cache,
-		logger:     logger,
-		pubsub:     pubsub,
-		queue:      queue,
-		srvPublic:  srvPublic,
-		srvAdmin:   srvAdmin,
-		srvMetrics: srvMetrics,
+		cache:  cache,
+		logger: logger,
+		pubsub: pubsub,
+		queue:  queue,
+
+		public:  srvPublic,
+		admin:   srvAdmin,
+		metrics: srvMetrics,
 	}
 
 	return srv, nil
@@ -93,9 +98,10 @@ type Server struct {
 	pubsub internal.Pubsub
 	queue  internal.Queue
 
-	srvPublic  *http.Server
-	srvAdmin   *http.Server
-	srvMetrics *http.Server
+	public  *http.Server
+	admin   *http.Server
+	metrics *http.Server
+	healthz *http.Server
 }
 
 func (s *Server) Start() error {
@@ -104,21 +110,28 @@ func (s *Server) Start() error {
 	signal.Notify(c, syscall.SIGINT)
 
 	go func() {
-		if err := s.srvAdmin.ListenAndServe(); err != nil {
+		if err := s.admin.ListenAndServe(); err != nil {
 			s.logger.Error(err)
 			return
 		}
 	}()
 
 	go func() {
-		if err := s.srvPublic.ListenAndServe(); err != nil {
+		if err := s.public.ListenAndServe(); err != nil {
 			s.logger.Error(err)
 			return
 		}
 	}()
 
 	go func() {
-		if err := s.srvMetrics.ListenAndServe(); err != nil {
+		if err := s.metrics.ListenAndServe(); err != nil {
+			s.logger.Error(err)
+			return
+		}
+	}()
+
+	go func() {
+		if err := s.healthz.ListenAndServe(); err != nil {
 			s.logger.Error(err)
 			return
 		}
@@ -128,15 +141,15 @@ func (s *Server) Start() error {
 
 	<-c
 
-	if err := s.srvMetrics.Shutdown(context.Background()); err != nil {
+	if err := s.metrics.Shutdown(context.Background()); err != nil {
 		s.logger.Warn(err)
 	}
 
-	if err := s.srvPublic.Shutdown(context.Background()); err != nil {
+	if err := s.public.Shutdown(context.Background()); err != nil {
 		s.logger.Warn(err)
 	}
 
-	if err := s.srvAdmin.Shutdown(context.Background()); err != nil {
+	if err := s.admin.Shutdown(context.Background()); err != nil {
 		s.logger.Warn(err)
 	}
 
@@ -144,15 +157,15 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Close() error {
-	if err := s.srvAdmin.Close(); err != nil {
+	if err := s.admin.Close(); err != nil {
 		s.logger.Error(err)
 	}
 
-	if err := s.srvPublic.Close(); err != nil {
+	if err := s.public.Close(); err != nil {
 		s.logger.Error(err)
 	}
 
-	if err := s.srvMetrics.Close(); err != nil {
+	if err := s.metrics.Close(); err != nil {
 		s.logger.Error(err)
 	}
 

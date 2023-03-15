@@ -7,8 +7,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func NewHealthz(_ *internal.Options) *Healthz {
+	return &Healthz{}
+}
+
 type Healthz struct {
-	Cache internal.Cache
+	opts internal.Options
 }
 
 func (u Healthz) Check(rw http.ResponseWriter, r *http.Request) {}

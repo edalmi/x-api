@@ -11,23 +11,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewUser(opts *internal.Options) *User {
-	return &User{
+func NewUser(opts *internal.Options) *UserHandler {
+	return &UserHandler{
 		metrics: newUserMetrics(opts.Metrics),
 		opts:    opts,
 	}
 }
 
-type User struct {
+type UserHandler struct {
 	metrics *userMetrics
 	opts    *internal.Options
 }
 
-func (u *User) CreateUser(rw http.ResponseWriter, r *http.Request) {
+func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
 	u.metrics.incrementCreatedUsers()
 }
 
-func (u User) ListUsers(rw http.ResponseWriter, r *http.Request) {
+func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
 	log := log.New(os.Stdout, "users", 0)
 	log.SetPrefix("users")
 	log.Println(r.URL.Path)
@@ -35,7 +35,7 @@ func (u User) ListUsers(rw http.ResponseWriter, r *http.Request) {
 	u.metrics.incrementCreatedUsers()
 }
 
-func (u User) DeleteUser(rw http.ResponseWriter, r *http.Request) {
+func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 	log := log.New(os.Stdout, "users", 0)
 	log.SetPrefix("users")
 	log.Println(r.URL.Path)
@@ -43,11 +43,11 @@ func (u User) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 	u.metrics.incrementDeletedUsers()
 }
 
-func (u User) GetUser(rw http.ResponseWriter, r *http.Request) {}
+func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {}
 
-func (u User) UpdateUser(rw http.ResponseWriter, r *http.Request) {}
+func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {}
 
-func (u User) Routes() *chi.Mux {
+func (u UserHandler) Routes() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/", u.ListUsers)

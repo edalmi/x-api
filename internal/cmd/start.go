@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"github.com/edalmi/x-api/config"
-	"github.com/edalmi/x-api/internal/server"
+	"github.com/edalmi/x-api/server"
 	"github.com/spf13/cobra"
 )
 

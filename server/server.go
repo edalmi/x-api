@@ -11,7 +11,7 @@ import (
 
 	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/config"
-	"github.com/edalmi/x-api/internal/handler"
+	"github.com/edalmi/x-api/handler"
 	stdlog "github.com/edalmi/x-api/logging/log"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"

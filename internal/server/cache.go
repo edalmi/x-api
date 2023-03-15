@@ -3,9 +3,9 @@ package server
 import (
 	"errors"
 
-	"github.com/edalmi/x-api/internal/caching"
-	memcachedprovider "github.com/edalmi/x-api/internal/caching/memcached"
-	redisprovider "github.com/edalmi/x-api/internal/caching/redis"
+	"github.com/edalmi/x-api/caching"
+	memcachedprovider "github.com/edalmi/x-api/caching/memcached"
+	redisprovider "github.com/edalmi/x-api/caching/redis"
 	"github.com/edalmi/x-api/internal/config"
 	"github.com/redis/go-redis/v9"
 )

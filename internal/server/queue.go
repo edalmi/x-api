@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/edalmi/x-api/internal/config"
-	"github.com/edalmi/x-api/internal/queue"
+	"github.com/edalmi/x-api/queue"
 )
 
 func setupQueue(cfg *config.Queue) (queue.Queue, error) {

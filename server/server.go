@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/handler"
 	stdlog "github.com/edalmi/x-api/logging/log"
@@ -43,14 +42,14 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, err
 		}*/
 
-	options := &internal.Options{
-		Cache: cache,
+	options := &Options{
+		cache: cache,
 		// Pubsub:  pubsub,
 		// Queue:   queue,
-		Logger: &stdlog.Logger{
+		logger: &stdlog.Logger{
 			Logger: log.Default(),
 		},
-		Metrics: prometheus.NewRegistry(),
+		metrics: prometheus.NewRegistry(),
 	}
 
 	srv := &Server{
@@ -95,9 +94,9 @@ func (s *Server) setupHealthzServer() error {
 
 func (s *Server) setupMetrcisServer() error {
 	handler := promhttp.HandlerFor(
-		s.options.Metrics.(*prometheus.Registry),
+		s.options.metrics.(*prometheus.Registry),
 		promhttp.HandlerOpts{
-			Registry: s.options.Metrics,
+			Registry: s.options.metrics,
 		},
 	)
 
@@ -145,7 +144,7 @@ func (s *Server) setupAdminServer() error {
 
 type Server struct {
 	cfg     *config.Config
-	options *internal.Options
+	options *Options
 	public  *HTTPServer
 	admin   *HTTPServer
 	metrics *HTTPServer
@@ -157,19 +156,19 @@ func (s *Server) Start() error {
 
 	signal.Notify(c, syscall.SIGINT)
 
-	s.options.Logger.Info("PID:", os.Getpid())
+	s.options.logger.Info("PID:", os.Getpid())
 
 	go func() {
 		log.Printf("Starting public server at %v", s.public.Addr)
 
 		if s.public.TLS {
 			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.public.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		}
@@ -180,12 +179,12 @@ func (s *Server) Start() error {
 
 		if s.admin.TLS {
 			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.admin.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		}
@@ -196,12 +195,12 @@ func (s *Server) Start() error {
 
 		if s.metrics.TLS {
 			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.metrics.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		}
@@ -212,36 +211,36 @@ func (s *Server) Start() error {
 
 		if s.healthz.TLS {
 			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.healthz.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
+				s.options.logger.Error(err)
 				return
 			}
 		}
 	}()
 
 	defer func() {
-		s.options.Logger.Info("Shutting down metrics server")
+		s.options.logger.Info("Shutting down metrics server")
 		if err := s.metrics.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+			s.options.logger.Warn(err)
 		}
 
-		s.options.Logger.Info("Shutting down public server")
+		s.options.logger.Info("Shutting down public server")
 		if err := s.public.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn("X", err)
+			s.options.logger.Warn("X", err)
 		}
 
-		s.options.Logger.Info("Shutting down admin server")
+		s.options.logger.Info("Shutting down admin server")
 		if err := s.admin.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+			s.options.logger.Warn(err)
 		}
 
-		s.options.Logger.Info("Shutting down healthz server")
+		s.options.logger.Info("Shutting down healthz server")
 		if err := s.healthz.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+			s.options.logger.Warn(err)
 		}
 
 		s.cleanUp()
@@ -258,42 +257,42 @@ func (s *Server) cleanUp() error {
 	}
 
 	if err := s.admin.Close(); err != nil {
-		s.options.Logger.Error(err)
+		s.options.logger.Error(err)
 	}
 
 	if err := s.public.Close(); err != nil {
-		s.options.Logger.Error(err)
+		s.options.logger.Error(err)
 	}
 
 	if err := s.metrics.Close(); err != nil {
-		s.options.Logger.Error(err)
+		s.options.logger.Error(err)
 	}
 
 	if err := s.healthz.Close(); err != nil {
-		s.options.Logger.Error(err)
+		s.options.logger.Error(err)
 	}
 
 	return nil
 }
 
 func (s *Server) closeOptions() error {
-	if c, ok := s.options.Cache.(io.Closer); ok {
-		s.options.Logger.Info("Freeing cache resources")
+	if c, ok := s.options.cache.(io.Closer); ok {
+		s.options.logger.Info("Freeing cache resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.Pubsub.(io.Closer); ok {
-		s.options.Logger.Info("Freeing pubsub resources")
+	if c, ok := s.options.pubsub.(io.Closer); ok {
+		s.options.logger.Info("Freeing pubsub resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.Queue.(io.Closer); ok {
-		s.options.Logger.Info("Freeing queue resources")
+	if c, ok := s.options.queue.(io.Closer); ok {
+		s.options.logger.Info("Freeing queue resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.Logger.(io.Closer); ok {
-		s.options.Logger.Info("Freeing logger resources")
+	if c, ok := s.options.logger.(io.Closer); ok {
+		s.options.logger.Info("Freeing logger resources")
 		c.Close()
 	}
 

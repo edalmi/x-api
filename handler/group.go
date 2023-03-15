@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewGroup(_ *internal.Options) *GroupHandler {
+func NewGroup(_ Options) *GroupHandler {
 	return &GroupHandler{}
 }
 

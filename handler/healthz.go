@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewHealthz(_ *internal.Options) *Healthz {
+func NewHealthz(_ Options) *Healthz {
 	return &Healthz{}
 }
 

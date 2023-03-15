@@ -3,10 +3,10 @@ package server
 import (
 	"errors"
 
-	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/internal/config"
+	"github.com/edalmi/x-api/internal/logging"
 )
 
-func setupLogger(cfg *config.Logger) (internal.Logger, error) {
+func setupLogger(cfg *config.Logger) (logging.Logger, error) {
 	return nil, errors.New("error")
 }

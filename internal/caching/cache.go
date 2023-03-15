@@ -1,3 +1,3 @@
-package internal
+package caching
 
 type Cache interface{}

@@ -1,3 +1,3 @@
-package internal
+package pubsub
 
 type Pubsub interface{}

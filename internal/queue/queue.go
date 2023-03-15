@@ -1,3 +1,3 @@
-package internal
+package queue
 
 type Queue interface{}

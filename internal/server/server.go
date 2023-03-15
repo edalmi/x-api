@@ -12,7 +12,7 @@ import (
 	"github.com/edalmi/x-api/internal"
 	"github.com/edalmi/x-api/internal/config"
 	"github.com/edalmi/x-api/internal/handler"
-	"github.com/edalmi/x-api/internal/stdlog"
+	stdlog "github.com/edalmi/x-api/internal/logging/log"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -45,8 +45,8 @@ func New(cfg *config.Config) (*Server, error) {
 
 	options := &internal.Options{
 		Cache: cache,
-		//Pubsub:  pubsub,
-		//Queue:   queue,
+		// Pubsub:  pubsub,
+		// Queue:   queue,
 		Logger: &stdlog.Logger{
 			Logger: log.Default(),
 		},

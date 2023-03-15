@@ -1,4 +1,4 @@
-package internal
+package logging
 
 type Logger interface {
 	Debug(v ...interface{})

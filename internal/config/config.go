@@ -16,17 +16,17 @@ func New(v *viper.Viper) (*Config, error) {
 
 func DefaultConfig() Config {
 	return Config{
-		Serve: Serve{
-			Public: &ServeItem{
+		Serve: Servers{
+			Public: &Server{
 				Port: 11230,
 			},
-			Admin: &ServeItem{
+			Admin: &Server{
 				Port: 11231,
 			},
-			Metrics: &ServeItem{
+			Metrics: &Server{
 				Port: 11232,
 			},
-			Healthz: &ServeItem{
+			Healthz: &Server{
 				Port: 11233,
 			},
 		},
@@ -34,9 +34,9 @@ func DefaultConfig() Config {
 }
 
 type Config struct {
-	Serve  *Serve  `mapstructure:"serve"`
-	Cache  *Cache  `mapstructure:"cache"`
-	Pubsub *Pubsub `mapstructure:"pubsub"`
-	Logger *Logger `mapstructure:"logger"`
-	Queue  *Queue  `mapstructure:"queue"`
+	Serve  *Servers `mapstructure:"serve"`
+	Cache  *Cache   `mapstructure:"cache"`
+	Pubsub *Pubsub  `mapstructure:"pubsub"`
+	Logger *Logger  `mapstructure:"logger"`
+	Queue  *Queue   `mapstructure:"queue"`
 }

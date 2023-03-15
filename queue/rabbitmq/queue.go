@@ -8,11 +8,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type Queue struct {
+type RabbitMQ struct {
 	conn *amqp.Connection
 }
 
-func (q *Queue) Push(ctx context.Context, name string, msg queue.Message) error {
+func (q *RabbitMQ) Push(ctx context.Context, name string, msg queue.Message) error {
 	ch, err := q.conn.Channel()
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (q *Queue) Push(ctx context.Context, name string, msg queue.Message) error 
 	return nil
 }
 
-func (q *Queue) Pull(ctx context.Context, name string) (<-chan *queue.Message, error) {
+func (q *RabbitMQ) Pull(ctx context.Context, name string) (<-chan *queue.Message, error) {
 	ch, err := q.conn.Channel()
 	if err != nil {
 		return nil, err
@@ -102,6 +102,6 @@ func (q *Queue) Pull(ctx context.Context, name string) (<-chan *queue.Message, e
 	return c, nil
 }
 
-func (q *Queue) Close() error {
+func (q *RabbitMQ) Close() error {
 	return q.Close()
 }

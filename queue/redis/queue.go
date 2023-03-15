@@ -1,3 +1,3 @@
 package redis
 
-type Queue struct{}
+type Redis struct{}

@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 
-	"github.com/edalmi/x-api/internal"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -12,7 +11,7 @@ func NewGroupHandler(_ HandlerOptions) *GroupHandler {
 }
 
 type GroupHandler struct {
-	opts internal.Options
+	opts Options
 }
 
 func (u GroupHandler) CreateGroup(rw http.ResponseWriter, r *http.Request) {}

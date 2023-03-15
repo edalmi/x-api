@@ -1,9 +1,15 @@
 package middleware
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+)
 
-func Nop(user, pw string) func(h http.Handler) http.Handler {
-	return func(h http.Handler) http.Handler {
-		return h
+func Nop(user, pw string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Println()
+			next.ServeHTTP(w, r)
+		})
 	}
 }

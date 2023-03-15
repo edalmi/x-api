@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -38,7 +38,7 @@ const (
 
 var v = viper.New()
 
-func NewCmdRoot() *cobra.Command {
+func New() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "x-api",
 		SilenceUsage: true,

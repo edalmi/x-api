@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -31,4 +32,12 @@ func (u GroupHandler) Routes() *chi.Mux {
 	r.Delete("/", u.DeleteGroup)
 
 	return r
+}
+
+type GroupCreate struct{}
+
+type Group struct{}
+
+type GroupService interface {
+	CreateUser(ctx context.Context, g GroupCreate) (*Group, error)
 }

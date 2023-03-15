@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/edalmi/x-api/commands"
+	"github.com/edalmi/x-api/internal/cmd"
 )
 
 func main() {
-	if err := commands.New().Execute(); err != nil {
+	if err := cmd.New().Execute(); err != nil {
 		panic(err)
 	}
 }

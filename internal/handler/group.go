@@ -3,16 +3,16 @@ package handler
 import (
 	"net/http"
 
-	"github.com/edalmi/x-api"
+	"github.com/edalmi/x-api/internal"
 	"github.com/go-chi/chi/v5"
 )
 
-func NewGroup(_ *xapi.Options) *Group {
+func NewGroup(_ *internal.Options) *Group {
 	return &Group{}
 }
 
 type Group struct {
-	opts xapi.Options
+	opts internal.Options
 }
 
 func (u Group) CreateGroup(rw http.ResponseWriter, r *http.Request) {}

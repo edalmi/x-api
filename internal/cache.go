@@ -1,3 +1,3 @@
-package xapi
+package internal
 
 type Cache interface{}

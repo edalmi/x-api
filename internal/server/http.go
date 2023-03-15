@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/edalmi/x-api/config"
+	"github.com/edalmi/x-api/internal/config"
 )
 
 func setupHTTPServer(cfg *config.Server, handler http.Handler) (*HTTPServer, error) {

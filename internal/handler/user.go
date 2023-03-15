@@ -6,12 +6,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/edalmi/x-api"
+	"github.com/edalmi/x-api/internal"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func NewUser(opts *xapi.Options) *User {
+func NewUser(opts *internal.Options) *User {
 	return &User{
 		metrics: newUserMetrics(opts.Metrics),
 		opts:    opts,
@@ -20,7 +20,7 @@ func NewUser(opts *xapi.Options) *User {
 
 type User struct {
 	metrics *userMetrics
-	opts    *xapi.Options
+	opts    *internal.Options
 }
 
 func (u *User) CreateUser(rw http.ResponseWriter, r *http.Request) {

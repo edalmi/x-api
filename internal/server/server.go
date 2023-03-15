@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/edalmi/x-api"
-	"github.com/edalmi/x-api/config"
-	"github.com/edalmi/x-api/handler"
-	"github.com/edalmi/x-api/stdlog"
+	"github.com/edalmi/x-api/internal"
+	"github.com/edalmi/x-api/internal/config"
+	"github.com/edalmi/x-api/internal/handler"
+	"github.com/edalmi/x-api/internal/stdlog"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -43,7 +43,7 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, err
 		}*/
 
-	options := &xapi.Options{
+	options := &internal.Options{
 		Cache: cache,
 		//Pubsub:  pubsub,
 		//Queue:   queue,
@@ -145,7 +145,7 @@ func (s *Server) setupAdminServer() error {
 
 type Server struct {
 	cfg     *config.Config
-	options *xapi.Options
+	options *internal.Options
 	public  *HTTPServer
 	admin   *HTTPServer
 	metrics *HTTPServer

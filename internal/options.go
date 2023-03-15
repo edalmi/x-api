@@ -1,4 +1,4 @@
-package xapi
+package internal
 
 import "github.com/prometheus/client_golang/prometheus"
 

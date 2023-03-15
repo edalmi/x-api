@@ -154,10 +154,10 @@ type adminRouter interface {
 type Server struct {
 	cfg     *config.Config
 	options *xapi.Options
-	public  *http.Server
-	admin   *http.Server
-	metrics *http.Server
-	healthz *http.Server
+	public  *HTTPServer
+	admin   *HTTPServer
+	metrics *HTTPServer
+	healthz *HTTPServer
 }
 
 func (s *Server) Start() error {
@@ -166,30 +166,58 @@ func (s *Server) Start() error {
 	signal.Notify(c, syscall.SIGINT)
 
 	go func() {
-		if err := s.admin.ListenAndServe(); err != nil {
-			s.options.Logger.Error(err)
-			return
+		if s.public.TLS {
+			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
+		} else {
+			if err := s.public.ListenAndServe(); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
 		}
 	}()
 
 	go func() {
-		if err := s.public.ListenAndServe(); err != nil {
-			s.options.Logger.Error(err)
-			return
+		if s.public.TLS {
+			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
+		} else {
+			if err := s.admin.ListenAndServe(); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
 		}
 	}()
 
 	go func() {
-		if err := s.metrics.ListenAndServe(); err != nil {
-			s.options.Logger.Error(err)
-			return
+		if s.metrics.TLS {
+			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
+		} else {
+			if err := s.metrics.ListenAndServe(); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
 		}
 	}()
 
 	go func() {
-		if err := s.healthz.ListenAndServe(); err != nil {
-			s.options.Logger.Error(err)
-			return
+		if s.healthz.TLS {
+			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
+		} else {
+			if err := s.healthz.ListenAndServe(); err != nil {
+				s.options.Logger.Error(err)
+				return
+			}
 		}
 	}()
 

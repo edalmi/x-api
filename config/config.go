@@ -4,6 +4,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	portPublic = iota + 11230
+	portAdmin
+	portMetricts
+	portHealthz
+)
+
 func New(v *viper.Viper) (*Config, error) {
 	cfg := DefaultConfig()
 
@@ -18,16 +25,16 @@ func DefaultConfig() Config {
 	return Config{
 		Serve: &Servers{
 			Public: &Server{
-				Port: 11230,
+				Port: portPublic,
 			},
 			Admin: &Server{
-				Port: 11231,
+				Port: portAdmin,
 			},
 			Metrics: &Server{
-				Port: 11232,
+				Port: portMetricts,
 			},
 			Healthz: &Server{
-				Port: 11233,
+				Port: portHealthz,
 			},
 		},
 	}

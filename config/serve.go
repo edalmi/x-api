@@ -8,18 +8,14 @@ type Servers struct {
 }
 
 type Server struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-	TLS  *TLS   `mapstructure:"tls"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	TLS          *TLS   `mapstructure:"tls"`
+	ReadTimeout  int    `mapstructure:"read_timeout"`
+	WriteTimeout int    `mapstructure:"write_timeout"`
 }
 
 type TLS struct {
-	CACert File `mapstructure:"ca-cert"`
-	Cert   File `mapstructure:"cert"`
-	Key    File `mapstructure:"key"`
-}
-
-type File struct {
-	Path   string `mapstructure:"path"`
-	Base64 string `mapstructure:"base64"`
+	Cert string `mapstructure:"cert"`
+	Key  string `mapstructure:"key"`
 }

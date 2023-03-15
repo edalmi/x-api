@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 
-	"github.com/edalmi/x-api/internal"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -12,7 +11,7 @@ func NewHealthz(_ HandlerOptions) *Healthz {
 }
 
 type Healthz struct {
-	opts internal.Options
+	opts HandlerOptions
 }
 
 func (u Healthz) Live(rw http.ResponseWriter, r *http.Request) {}

@@ -11,7 +11,7 @@ func NewGroupHandler(_ HandlerOptions) *GroupHandler {
 }
 
 type GroupHandler struct {
-	opts Options
+	opts HandlerOptions
 }
 
 func (u GroupHandler) CreateGroup(rw http.ResponseWriter, r *http.Request) {}

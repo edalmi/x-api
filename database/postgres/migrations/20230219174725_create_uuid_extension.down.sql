@@ -1,1 +1,0 @@
-DROP EXTESION IF EXIST "uuid-ossp";

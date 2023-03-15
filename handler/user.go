@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"sync"
 
@@ -25,7 +26,10 @@ func (u *User) CreateUser(rw http.ResponseWriter, r *http.Request) {
 	u.metrics.IncTotalUsers()
 }
 
-func (u User) ListUsers(rw http.ResponseWriter, r *http.Request) {}
+func (u User) ListUsers(rw http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL.Path)
+	u.metrics.IncTotalUsers()
+}
 
 func (u User) DeleteUser(rw http.ResponseWriter, r *http.Request) {}
 

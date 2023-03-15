@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,31 +18,35 @@ import (
 )
 
 func New(cfg *config.Config) (*Server, error) {
+	log.Println("setup cache")
 	cache, err := setupCache(cfg.Cache)
 	if err != nil {
 		return nil, err
 	}
 
-	logger, err := setupLogger(cfg.Logger)
-	if err != nil {
-		return nil, err
-	}
+	/*	log.Println("setup logger")
+		logger, err := setupLogger(cfg.Logger)
+		if err != nil {
+			return nil, err
+		}
 
-	pubsub, err := setupPubsub(cfg.Pubsub)
-	if err != nil {
-		return nil, err
-	}
+		log.Println("setup pubsub")
+		pubsub, err := setupPubsub(cfg.Pubsub)
+		if err != nil {
+			return nil, err
+		}
 
-	queue, err := setupQueue(cfg.Queue)
-	if err != nil {
-		return nil, err
-	}
+		log.Println("setup queue")
+		queue, err := setupQueue(cfg.Queue)
+		if err != nil {
+			return nil, err
+		}*/
 
 	options := &xapi.Options{
-		Cache:   cache,
-		Pubsub:  pubsub,
-		Queue:   queue,
-		Logger:  logger,
+		Cache: cache,
+		//Pubsub:  pubsub,
+		//Queue:   queue,
+		//Logger:  logger,
 		Metrics: prometheus.NewRegistry(),
 	}
 
@@ -69,7 +74,7 @@ func New(cfg *config.Config) (*Server, error) {
 	return srv, nil
 }
 
-func (s Server) setupHealthzServer() error {
+func (s *Server) setupHealthzServer() error {
 	handler := handler.NewHealthz(s.options)
 
 	router := chi.NewRouter()
@@ -85,7 +90,7 @@ func (s Server) setupHealthzServer() error {
 	return nil
 }
 
-func (s Server) setupMetrcisServer() error {
+func (s *Server) setupMetrcisServer() error {
 	handler := promhttp.HandlerFor(
 		s.options.Metrics.(*prometheus.Registry),
 		promhttp.HandlerOpts{
@@ -103,7 +108,7 @@ func (s Server) setupMetrcisServer() error {
 	return nil
 }
 
-func (s Server) setupPublicServer() error {
+func (s *Server) setupPublicServer() error {
 	var (
 		users  = handler.NewUser(s.options)
 		groups = handler.NewGroup(s.options)
@@ -123,32 +128,16 @@ func (s Server) setupPublicServer() error {
 	return nil
 }
 
-func (s Server) setupAdminServer() error {
-	var (
-		users  = handler.NewUser(s.options)
-		groups = handler.NewGroup(s.options)
-	)
-
-	router := chi.NewRouter()
-	router.Mount("/users", users.Routes())
-	router.Mount("/groups", groups.Routes())
-
+func (s *Server) setupAdminServer() error {
+	router := http.NewServeMux()
 	srv, err := setupHTTPServer(s.cfg.Serve.Admin, router)
 	if err != nil {
 		return err
 	}
 
-	s.public = srv
+	s.admin = srv
 
 	return nil
-}
-
-type publicRouter interface {
-	RegisterRoutes(r *chi.Router)
-}
-
-type adminRouter interface {
-	RegisterAdminRoutes(r *chi.Router)
 }
 
 type Server struct {
@@ -166,6 +155,8 @@ func (s *Server) Start() error {
 	signal.Notify(c, syscall.SIGINT)
 
 	go func() {
+		log.Printf("Starting public server at %v", s.public.Addr)
+
 		if s.public.TLS {
 			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
 				s.options.Logger.Error(err)
@@ -180,7 +171,9 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
-		if s.public.TLS {
+		log.Printf("Starting admin at %v", s.admin.Addr)
+
+		if s.admin.TLS {
 			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
 				s.options.Logger.Error(err)
 				return
@@ -194,6 +187,8 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
+		log.Printf("Starting metrics server at %v", s.metrics.Addr)
+
 		if s.metrics.TLS {
 			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
 				s.options.Logger.Error(err)
@@ -208,6 +203,8 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
+		log.Printf("Starting healthz server at %v", s.healthz.Addr)
+
 		if s.healthz.TLS {
 			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
 				s.options.Logger.Error(err)

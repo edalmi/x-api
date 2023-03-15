@@ -17,8 +17,6 @@
 package commands
 
 import (
-	"fmt"
-
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/server"
 	"github.com/spf13/cobra"
@@ -32,18 +30,15 @@ func NewCmdStart() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.New(v)
 			if err != nil {
+				return err
 			}
-
-			fmt.Printf("%#v", *cfg)
 
 			srv, err := server.New(cfg)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%#v", *srv)
-
-			return nil
+			return srv.Start()
 		},
 	}
 

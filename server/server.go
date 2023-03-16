@@ -314,7 +314,7 @@ func (s *Server) Start() error {
 
 func (s Server) startServer(srv *httpServer) error {
 	if srv.tls {
-		if err := s.healthzServer.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
+		if err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
 			if err == http.ErrServerClosed {
 				return nil
 			}

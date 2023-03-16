@@ -1,29 +1,41 @@
 package handler
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 
+	"github.com/edalmi/x-api/database"
+	"github.com/edalmi/x-api/database/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 func NewUserHandler(opts HandlerOptions) *UserHandler {
 	return &UserHandler{
-		metrics: newUserMetrics(opts.Metrics()),
-		opts:    opts,
+		UserRepository: postgres.UserRepo{
+			DB: opts.DB(),
+		},
+		UserMetrics: newUserMetrics(opts.Metrics()),
+		Options:     opts,
 	}
 }
 
 type UserHandler struct {
-	metrics *userMetrics
-	opts    HandlerOptions
+	UserRepository userRepo
+	UserMetrics    UserMetrics
+	Options        HandlerOptions
 }
 
 func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
-	u.metrics.incrementCreatedUsers()
+	_, err := u.UserRepository.CreateUser(context.Background(), database.NewUser{})
+	if err != nil {
+		return
+	}
+
+	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
@@ -31,7 +43,12 @@ func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
 	log.SetPrefix("users")
 	log.Println(r.URL.Path)
 
-	u.metrics.incrementCreatedUsers()
+	_, err := u.UserRepository.ListUsers(context.Background())
+	if err != nil {
+		return
+	}
+
+	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
@@ -39,7 +56,7 @@ func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 	log.SetPrefix("users")
 	log.Println(r.URL.Path)
 
-	u.metrics.incrementDeletedUsers()
+	u.UserMetrics.IncrementUsersDeleted()
 }
 
 func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {}
@@ -58,20 +75,30 @@ func (u UserHandler) Routes() *chi.Mux {
 	return r
 }
 
+type userRepo interface {
+	CreateUser(ctx context.Context, in database.NewUser) (*database.User, error)
+	ListUsers(ctx context.Context) ([]database.User, error)
+}
+
+type UserMetrics interface {
+	IncrementUsersCreated()
+	IncrementUsersDeleted()
+}
+
 type userMetrics struct {
 	mu           sync.Mutex
 	createdUsers prometheus.Counter
 	deletedUsers prometheus.Counter
 }
 
-func (u *userMetrics) incrementCreatedUsers() {
+func (u *userMetrics) IncrementUsersCreated() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	u.createdUsers.Inc()
 }
 
-func (u *userMetrics) incrementDeletedUsers() {
+func (u *userMetrics) IncrementUsersDeleted() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 

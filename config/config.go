@@ -18,6 +18,10 @@ func New(v *viper.Viper) (*Config, error) {
 		return nil, err
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
 }
 
@@ -46,4 +50,9 @@ type Config struct {
 	Pubsub *Pubsub  `mapstructure:"pubsub"`
 	Logger *Logger  `mapstructure:"logger"`
 	Queue  *Queue   `mapstructure:"queue"`
+	DB     DB       `mapstructure:"db"`
+}
+
+func (c Config) Validate() error {
+	return nil
 }

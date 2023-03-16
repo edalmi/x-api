@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/edalmi/x-api/caching"
+	"github.com/edalmi/x-api/database"
 	"github.com/edalmi/x-api/logging"
 	"github.com/edalmi/x-api/pubsub"
 	"github.com/edalmi/x-api/queue"
@@ -14,4 +15,5 @@ type HandlerOptions interface {
 	Cache() caching.Cache
 	Logger() logging.Logger
 	Metrics() prometheus.Registerer
+	DB() *database.DB
 }

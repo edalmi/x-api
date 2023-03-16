@@ -45,14 +45,33 @@ func DefaultConfig() Config {
 }
 
 type Config struct {
-	Serve  *Servers `mapstructure:"serve"`
-	Cache  *Cache   `mapstructure:"cache"`
-	Pubsub *Pubsub  `mapstructure:"pubsub"`
-	Logger *Logger  `mapstructure:"logger"`
-	Queue  *Queue   `mapstructure:"queue"`
-	DB     DB       `mapstructure:"db"`
+	Serve      *Servers    `mapstructure:"serve"`
+	Cache      *Cache      `mapstructure:"cache"`
+	Pubsub     *Pubsub     `mapstructure:"pubsub"`
+	Logger     *Logger     `mapstructure:"logger"`
+	Queue      *Queue      `mapstructure:"queue"`
+	DB         *DB         `mapstructure:"db"`
+	Prometheus *Prometheus `mapstructure:"prometheus"`
 }
 
 func (c Config) Validate() error {
+	parts := []interface{}{
+		c.Serve,
+		c.Cache,
+		c.Pubsub,
+		c.Logger,
+		c.Queue,
+		c.DB,
+		c.Prometheus,
+	}
+
+	for _, i := range parts {
+		if part, ok := i.(interface{ Validate() error }); ok {
+			if err := part.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }

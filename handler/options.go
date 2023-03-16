@@ -16,5 +16,5 @@ type HandlerOptions interface {
 	Logger() logging.Logger
 	Metrics() prometheus.Registerer
 	DB() *database.DB
-	App() string
+	ID() string
 }

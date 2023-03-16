@@ -117,7 +117,7 @@ func (s *Server) setupHealthzServer() error {
 		return err
 	}
 
-	s.healthz = srv
+	s.healthzServer = srv
 
 	return nil
 }
@@ -135,7 +135,7 @@ func (s *Server) setupMetrcisServer() error {
 		return err
 	}
 
-	s.metrics = srv
+	s.metricsServer = srv
 
 	return nil
 }
@@ -155,7 +155,7 @@ func (s *Server) setupPublicServer() error {
 		return err
 	}
 
-	s.public = srv
+	s.publicServer = srv
 
 	return nil
 }
@@ -167,7 +167,7 @@ func (s *Server) setupAdminServer() error {
 		return err
 	}
 
-	s.admin = srv
+	s.adminServer = srv
 
 	return nil
 }
@@ -182,13 +182,13 @@ type Server struct {
 	queue      queue.Queue
 	prometheus prometheus.Registerer
 
-	public  *HTTPServer
-	admin   *HTTPServer
-	metrics *HTTPServer
-	healthz *HTTPServer
+	publicServer  *httpServer
+	adminServer   *httpServer
+	metricsServer *httpServer
+	healthzServer *httpServer
 }
 
-func (s Server) App() string {
+func (s Server) ID() string {
 	return s.app
 }
 
@@ -225,55 +225,54 @@ func (s *Server) Start() error {
 
 	signal.Notify(c, os.Interrupt)
 	s.logger.Infof("PID: %d", os.Getpid())
-	s.logger.Infof("OS: %v", runtime.GOOS)
-	s.logger.Infof("Arch: %v", runtime.GOARCH)
+	s.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
 
 	go func() {
-		s.logger.Infof("Starting public server at %v", s.public.Addr)
-		if err := s.startServer(s.public); err != nil {
+		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
+		if err := s.startServer(s.publicServer); err != nil {
 			s.logger.Error(err)
 		}
 	}()
 
 	go func() {
-		s.logger.Infof("Starting admin at %v", s.admin.Addr)
-		if err := s.startServer(s.admin); err != nil {
+		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
+		if err := s.startServer(s.adminServer); err != nil {
 			s.logger.Error(err)
 		}
 	}()
 
 	go func() {
-		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
-		if err := s.startServer(s.metrics); err != nil {
+		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
+		if err := s.startServer(s.metricsServer); err != nil {
 			s.logger.Error(err)
 		}
 	}()
 
 	go func() {
-		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
-		if err := s.startServer(s.healthz); err != nil {
+		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
+		if err := s.startServer(s.healthzServer); err != nil {
 			s.logger.Error(err)
 		}
 	}()
 
 	defer func() {
 		s.logger.Info("Tearing down public server")
-		if err := s.teardownServer(s.public); err != nil {
+		if err := s.teardownServer(s.publicServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down admin server")
-		if err := s.teardownServer(s.admin); err != nil {
+		if err := s.teardownServer(s.adminServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down metrics server")
-		if err := s.teardownServer(s.metrics); err != nil {
+		if err := s.teardownServer(s.metricsServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down healthz server")
-		if err := s.teardownServer(s.healthz); err != nil {
+		if err := s.teardownServer(s.healthzServer); err != nil {
 			s.logger.Error(err)
 		}
 
@@ -313,9 +312,9 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s Server) startServer(srv *HTTPServer) error {
-	if srv.TLS {
-		if err := s.healthz.ListenAndServeTLS(srv.TLSCert, srv.TLSKey); err != nil {
+func (s Server) startServer(srv *httpServer) error {
+	if srv.tls {
+		if err := s.healthzServer.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
 			if err == http.ErrServerClosed {
 				return nil
 			}
@@ -335,7 +334,7 @@ func (s Server) startServer(srv *HTTPServer) error {
 	return nil
 }
 
-func (s *Server) teardownServer(srv *HTTPServer) error {
+func (s *Server) teardownServer(srv *httpServer) error {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		if err == http.ErrServerClosed {
 			return nil
@@ -388,8 +387,8 @@ func (s *Server) teardownLogger() error {
 }
 
 func (s *Server) teardownDB() error {
-	if c, ok := s.logger.(io.Closer); ok {
-		return c.Close()
+	if s.db != nil {
+		return s.db.Close()
 	}
 
 	return nil

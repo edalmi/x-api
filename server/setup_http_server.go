@@ -9,8 +9,8 @@ import (
 	"github.com/edalmi/x-api/config"
 )
 
-func setupHTTPServer(cfg *config.Server, handler http.Handler) (*HTTPServer, error) {
-	srv := &HTTPServer{
+func setupHTTPServer(cfg *config.Server, handler http.Handler) (*httpServer, error) {
+	srv := &httpServer{
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 			Handler:      handler,
@@ -28,17 +28,17 @@ func setupHTTPServer(cfg *config.Server, handler http.Handler) (*HTTPServer, err
 			return nil, errors.New("key error")
 		}
 
-		srv.TLS = true
-		srv.TLSCert = tlsCfg.Cert
-		srv.TLSKey = tlsCfg.Key
+		srv.tls = true
+		srv.tlsCert = tlsCfg.Cert
+		srv.tlsKey = tlsCfg.Key
 	}
 
 	return srv, nil
 }
 
-type HTTPServer struct {
+type httpServer struct {
 	*http.Server
-	TLS     bool
-	TLSCert string
-	TLSKey  string
+	tls     bool
+	tlsCert string
+	tlsKey  string
 }

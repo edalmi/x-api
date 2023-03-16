@@ -14,7 +14,7 @@ var reqs int64
 
 func NewUserHandler(opts HandlerOptions) *UserHandler {
 	return &UserHandler{
-		UserMetrics: newUserMetrics(opts.App(), opts.Metrics()),
+		UserMetrics: newUserMetrics(opts.ID(), opts.Metrics()),
 		Options:     opts,
 	}
 }

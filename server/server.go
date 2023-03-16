@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 
 	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
@@ -64,7 +65,7 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 func (s *Server) setupMetrics() error {
-	s.logger.Info("setup metrics")
+	s.logger.Info("setting up metrics provider")
 
 	s.prometheus = prometheus.NewRegistry()
 
@@ -82,7 +83,7 @@ func (s *Server) setupLogger() error {
 }
 
 func (s *Server) setupDB() error {
-	s.logger.Info("setup database")
+	s.logger.Info("setting up database")
 
 	db, err := setupDB(s.config.DB)
 	if err != nil {
@@ -94,7 +95,7 @@ func (s *Server) setupDB() error {
 }
 
 func (s *Server) setupCache() error {
-	s.logger.Info("setup database")
+	s.logger.Info("setting up cache provider")
 
 	cache, err := setupCache(s.config.Cache)
 	if err != nil {
@@ -223,27 +224,36 @@ func (s *Server) Start() error {
 	c := make(chan os.Signal, 1)
 
 	signal.Notify(c, os.Interrupt)
-
-	s.logger.Info("PID:", os.Getpid())
+	s.logger.Infof("PID: %d", os.Getpid())
+	s.logger.Infof("OS: %v", runtime.GOOS)
+	s.logger.Infof("Arch: %v", runtime.GOARCH)
 
 	go func() {
 		s.logger.Infof("Starting public server at %v", s.public.Addr)
-		s.startServer(s.public)
+		if err := s.startServer(s.public); err != nil {
+			s.logger.Error(err)
+		}
 	}()
 
 	go func() {
 		s.logger.Infof("Starting admin at %v", s.admin.Addr)
-		s.startServer(s.admin)
+		if err := s.startServer(s.admin); err != nil {
+			s.logger.Error(err)
+		}
 	}()
 
 	go func() {
 		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
-		s.startServer(s.metrics)
+		if err := s.startServer(s.metrics); err != nil {
+			s.logger.Error(err)
+		}
 	}()
 
 	go func() {
 		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
-		s.startServer(s.healthz)
+		if err := s.startServer(s.healthz); err != nil {
+			s.logger.Error(err)
+		}
 	}()
 
 	defer func() {
@@ -304,8 +314,6 @@ func (s *Server) Start() error {
 }
 
 func (s Server) startServer(srv *HTTPServer) error {
-	s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
-
 	if srv.TLS {
 		if err := s.healthz.ListenAndServeTLS(srv.TLSCert, srv.TLSKey); err != nil {
 			if err == http.ErrServerClosed {

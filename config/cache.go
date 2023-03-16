@@ -6,10 +6,10 @@ type Cache struct {
 }
 
 func (p Cache) Validate() error {
-	parts := validator{
+	options := enum{
 		"redis":     p.Redis,
 		"memcached": p.Memcached,
 	}
 
-	return parts.Validate()
+	return options.Validate()
 }

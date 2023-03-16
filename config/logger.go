@@ -7,7 +7,7 @@ type Logger struct {
 }
 
 func (l Logger) Validate() error {
-	providers := validator{
+	providers := enum{
 		"std":  l.Std,
 		"zap":  l.Zap,
 		"slog": l.Slog,

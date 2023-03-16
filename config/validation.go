@@ -2,25 +2,23 @@ package config
 
 import "fmt"
 
-type validator map[string]interface{}
+type enum map[string]interface{}
 
-func (v validator) Validate() error {
-	var defined bool
-	var selected interface{}
-	for k, v := range v {
-		if v != nil {
-			if defined {
+func (e enum) Validate() error {
+	var alreadyDefined bool
+
+	for k, option := range e {
+		if option != nil {
+			if alreadyDefined {
+				fmt.Printf("%#v", option)
 				return fmt.Errorf("%v only one provider should be configured", k)
 			}
 
-			defined = true
-			selected = v
-		}
-	}
+			if s, ok := option.(interface{ Validate() error }); ok {
+				return s.Validate()
+			}
 
-	if selected != nil {
-		if s, ok := selected.(interface{ Validate() error }); ok {
-			return s.Validate()
+			alreadyDefined = true
 		}
 	}
 

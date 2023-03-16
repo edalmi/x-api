@@ -8,7 +8,7 @@ type DB struct {
 }
 
 func (p DB) Validate() error {
-	parts := validator{
+	parts := enum{
 		"postgres": p.Postgres,
 		"mysql":    p.MySQL,
 		"sqlite":   p.SQLite,

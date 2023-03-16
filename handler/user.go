@@ -1,60 +1,39 @@
 package handler
 
 import (
-	"context"
-	"log"
 	"net/http"
-	"os"
 	"sync"
 
-	"github.com/edalmi/x-api/database"
-	"github.com/edalmi/x-api/database/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 func NewUserHandler(opts HandlerOptions) *UserHandler {
 	return &UserHandler{
-		UserRepository: postgres.UserRepo{
-			DB: opts.DB(),
-		},
 		UserMetrics: newUserMetrics(opts.Metrics()),
 		Options:     opts,
 	}
 }
 
 type UserHandler struct {
-	UserRepository userRepo
-	UserMetrics    UserMetrics
-	Options        HandlerOptions
+	UserMetrics UserMetrics
+	Options     HandlerOptions
 }
 
 func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
-	_, err := u.UserRepository.CreateUser(context.Background(), database.NewUser{})
-	if err != nil {
-		return
-	}
+	u.Options.Logger().Info(r.URL.Path)
 
 	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
-	log := log.New(os.Stdout, "users", 0)
-	log.SetPrefix("users")
-	log.Println(r.URL.Path)
-
-	_, err := u.UserRepository.ListUsers(context.Background())
-	if err != nil {
-		return
-	}
+	u.Options.Logger().Info(r.URL.Path)
 
 	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
-	log := log.New(os.Stdout, "users", 0)
-	log.SetPrefix("users")
-	log.Println(r.URL.Path)
+	u.Options.Logger().Info(r.URL.Path)
 
 	u.UserMetrics.IncrementUsersDeleted()
 }
@@ -73,11 +52,6 @@ func (u UserHandler) Routes() *chi.Mux {
 	r.Put("/{id}", u.UpdateUser)
 
 	return r
-}
-
-type userRepo interface {
-	CreateUser(ctx context.Context, in database.NewUser) (*database.User, error)
-	ListUsers(ctx context.Context) ([]database.User, error)
 }
 
 type UserMetrics interface {

@@ -6,7 +6,7 @@ type Pubsub struct {
 }
 
 func (p Pubsub) Validate() error {
-	parts := validator{
+	parts := enum{
 		"redis":    p.Redis,
 		"rabbitmq": p.RabbitMQ,
 	}

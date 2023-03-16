@@ -7,59 +7,35 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 
+	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
+	"github.com/edalmi/x-api/database"
 	"github.com/edalmi/x-api/handler"
+	"github.com/edalmi/x-api/logging"
 	stdlog "github.com/edalmi/x-api/logging/log"
+	"github.com/edalmi/x-api/pubsub"
+	"github.com/edalmi/x-api/queue"
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func New(cfg *config.Config) (*Server, error) {
-	log.Println("setup cache")
-	cache, err := setupCache(cfg.Cache)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Println("setup database")
-	db, err := setupDB(cfg.DB)
-	if err != nil {
-		return nil, err
-	}
-
-	/*	log.Println("setup logger")
-		logger, err := setupLogger(cfg.Logger)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Println("setup pubsub")
-		pubsub, err := setupPubsub(cfg.Pubsub)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Println("setup queue")
-		queue, err := setupQueue(cfg.Queue)
-		if err != nil {
-			return nil, err
-		}*/
-
-	options := &Options{
-		db:    db,
-		cache: cache,
-		logger: &stdlog.Logger{
-			Logger: log.Default(),
-		},
-		metrics: prometheus.NewRegistry(),
-	}
-
 	srv := &Server{
-		cfg:     cfg,
-		options: options,
+		config: cfg,
+	}
+
+	if err := srv.setupDB(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupCache(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupLogger(); err != nil {
+		return nil, err
 	}
 
 	if err := srv.setupAdminServer(); err != nil {
@@ -81,13 +57,53 @@ func New(cfg *config.Config) (*Server, error) {
 	return srv, nil
 }
 
+func (s *Server) setupMetrics() error {
+	log.Println("setup metrics")
+
+	s.logger = &stdlog.Logger{
+		Logger: log.Default(),
+	}
+
+	return nil
+}
+
+func (s *Server) setupLogger() error {
+	log.Println("setup metrics")
+	s.prometheus = prometheus.NewRegistry()
+
+	return nil
+}
+
+func (s *Server) setupDB() error {
+	log.Println("setup database")
+	db, err := setupDB(s.config.DB)
+	if err != nil {
+		return err
+	}
+
+	s.db = db
+	return nil
+}
+
+func (s *Server) setupCache() error {
+	log.Println("setup database")
+
+	cache, err := setupCache(s.config.Cache)
+	if err != nil {
+		return err
+	}
+
+	s.cache = cache
+	return nil
+}
+
 func (s *Server) setupHealthzServer() error {
-	handler := handler.NewHealthz(s.options)
+	handler := handler.NewHealthz(s)
 
 	router := chi.NewRouter()
 	router.Mount("/healthz", handler.Routes())
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Healthz, router)
+	srv, err := setupHTTPServer(s.config.Serve.Healthz, router)
 	if err != nil {
 		return err
 	}
@@ -99,13 +115,13 @@ func (s *Server) setupHealthzServer() error {
 
 func (s *Server) setupMetrcisServer() error {
 	handler := promhttp.HandlerFor(
-		s.options.metrics.(*prometheus.Registry),
+		s.prometheus.(*prometheus.Registry),
 		promhttp.HandlerOpts{
-			Registry: s.options.metrics,
+			Registry: s.prometheus,
 		},
 	)
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Metrics, handler)
+	srv, err := setupHTTPServer(s.config.Serve.Metrics, handler)
 	if err != nil {
 		return err
 	}
@@ -117,15 +133,15 @@ func (s *Server) setupMetrcisServer() error {
 
 func (s *Server) setupPublicServer() error {
 	var (
-		users  = handler.NewUserHandler(s.options)
-		groups = handler.NewGroupHandler(s.options)
+		users  = handler.NewUserHandler(s)
+		groups = handler.NewGroupHandler(s)
 	)
 
 	router := chi.NewRouter()
 	router.Mount("/users", users.Routes())
 	router.Mount("/groups", groups.Routes())
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Public, router)
+	srv, err := setupHTTPServer(s.config.Serve.Public, router)
 	if err != nil {
 		return err
 	}
@@ -137,7 +153,7 @@ func (s *Server) setupPublicServer() error {
 
 func (s *Server) setupAdminServer() error {
 	router := http.NewServeMux()
-	srv, err := setupHTTPServer(s.cfg.Serve.Admin, router)
+	srv, err := setupHTTPServer(s.config.Serve.Admin, router)
 	if err != nil {
 		return err
 	}
@@ -148,32 +164,66 @@ func (s *Server) setupAdminServer() error {
 }
 
 type Server struct {
-	cfg     *config.Config
-	options *Options
+	config     *config.Config
+	db         *database.DB
+	cache      caching.Cache
+	logger     logging.Logger
+	pubsub     pubsub.Pubsub
+	queue      queue.Queue
+	prometheus prometheus.Registerer
+
 	public  *HTTPServer
 	admin   *HTTPServer
 	metrics *HTTPServer
 	healthz *HTTPServer
 }
 
+func (s Server) Config() *config.Config {
+	return s.config
+}
+
+func (s Server) Logger() logging.Logger {
+	return s.logger
+}
+
+func (s Server) Cache() caching.Cache {
+	return s.cache
+}
+
+func (s Server) Queue() queue.Queue {
+	return s.queue
+}
+
+func (s Server) Pubsub() pubsub.Pubsub {
+	return s.pubsub
+}
+
+func (s Server) DB() *database.DB {
+	return s.db
+}
+
+func (s Server) Metrics() prometheus.Registerer {
+	return s.prometheus
+}
+
 func (s *Server) Start() error {
 	c := make(chan os.Signal, 1)
 
-	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, os.Interrupt)
 
-	s.options.logger.Info("PID:", os.Getpid())
+	s.logger.Info("PID:", os.Getpid())
 
 	go func() {
 		log.Printf("Starting public server at %v", s.public.Addr)
 
 		if s.public.TLS {
 			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.public.ListenAndServe(); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		}
@@ -184,12 +234,12 @@ func (s *Server) Start() error {
 
 		if s.admin.TLS {
 			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.admin.ListenAndServe(); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		}
@@ -200,12 +250,12 @@ func (s *Server) Start() error {
 
 		if s.metrics.TLS {
 			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.metrics.ListenAndServe(); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		}
@@ -216,36 +266,36 @@ func (s *Server) Start() error {
 
 		if s.healthz.TLS {
 			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		} else {
 			if err := s.healthz.ListenAndServe(); err != nil {
-				s.options.logger.Error(err)
+				s.logger.Error(err)
 				return
 			}
 		}
 	}()
 
 	defer func() {
-		s.options.logger.Info("Shutting down metrics server")
+		s.logger.Info("Shutting down metrics server")
 		if err := s.metrics.Shutdown(context.Background()); err != nil {
-			s.options.logger.Warn(err)
+			s.logger.Warn(err)
 		}
 
-		s.options.logger.Info("Shutting down public server")
+		s.logger.Info("Shutting down public server")
 		if err := s.public.Shutdown(context.Background()); err != nil {
-			s.options.logger.Warn("X", err)
+			s.logger.Warn("X", err)
 		}
 
-		s.options.logger.Info("Shutting down admin server")
+		s.logger.Info("Shutting down admin server")
 		if err := s.admin.Shutdown(context.Background()); err != nil {
-			s.options.logger.Warn(err)
+			s.logger.Warn(err)
 		}
 
-		s.options.logger.Info("Shutting down healthz server")
+		s.logger.Info("Shutting down healthz server")
 		if err := s.healthz.Shutdown(context.Background()); err != nil {
-			s.options.logger.Warn(err)
+			s.logger.Warn(err)
 		}
 
 		s.cleanUp()
@@ -262,42 +312,42 @@ func (s *Server) cleanUp() error {
 	}
 
 	if err := s.admin.Close(); err != nil {
-		s.options.logger.Error(err)
+		s.logger.Error(err)
 	}
 
 	if err := s.public.Close(); err != nil {
-		s.options.logger.Error(err)
+		s.logger.Error(err)
 	}
 
 	if err := s.metrics.Close(); err != nil {
-		s.options.logger.Error(err)
+		s.logger.Error(err)
 	}
 
 	if err := s.healthz.Close(); err != nil {
-		s.options.logger.Error(err)
+		s.logger.Error(err)
 	}
 
 	return nil
 }
 
 func (s *Server) closeOptions() error {
-	if c, ok := s.options.cache.(io.Closer); ok {
-		s.options.logger.Info("Freeing cache resources")
+	if c, ok := s.cache.(io.Closer); ok {
+		s.logger.Info("Freeing cache resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.pubsub.(io.Closer); ok {
-		s.options.logger.Info("Freeing pubsub resources")
+	if c, ok := s.pubsub.(io.Closer); ok {
+		s.logger.Info("Freeing pubsub resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.queue.(io.Closer); ok {
-		s.options.logger.Info("Freeing queue resources")
+	if c, ok := s.queue.(io.Closer); ok {
+		s.logger.Info("Freeing queue resources")
 		c.Close()
 	}
 
-	if c, ok := s.options.logger.(io.Closer); ok {
-		s.options.logger.Info("Freeing logger resources")
+	if c, ok := s.logger.(io.Closer); ok {
+		s.logger.Info("Freeing logger resources")
 		c.Close()
 	}
 

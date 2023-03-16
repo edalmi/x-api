@@ -6,7 +6,7 @@ type Queue struct {
 }
 
 func (l Queue) Validate() error {
-	providers := validator{
+	providers := enum{
 		"redis":    l.Redis,
 		"rabbitmq": l.RabbitMQ,
 	}

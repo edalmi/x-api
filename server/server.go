@@ -228,66 +228,22 @@ func (s *Server) Start() error {
 
 	go func() {
 		s.logger.Infof("Starting public server at %v", s.public.Addr)
-
-		if s.public.TLS {
-			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.public.ListenAndServe(); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		}
+		s.startServer(s.public)
 	}()
 
 	go func() {
 		s.logger.Infof("Starting admin at %v", s.admin.Addr)
-
-		if s.admin.TLS {
-			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.admin.ListenAndServe(); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		}
+		s.startServer(s.admin)
 	}()
 
 	go func() {
 		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
-
-		if s.metrics.TLS {
-			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.metrics.ListenAndServe(); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		}
+		s.startServer(s.metrics)
 	}()
 
 	go func() {
 		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
-
-		if s.healthz.TLS {
-			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.healthz.ListenAndServe(); err != nil {
-				s.logger.Error(err)
-				return
-			}
-		}
+		s.startServer(s.healthz)
 	}()
 
 	defer func() {
@@ -296,17 +252,17 @@ func (s *Server) Start() error {
 			s.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down public server")
+		s.logger.Info("Tearing down admin server")
 		if err := s.teardownServer(s.admin); err != nil {
 			s.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down public server")
+		s.logger.Info("Tearing down metrics server")
 		if err := s.teardownServer(s.metrics); err != nil {
 			s.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down public server")
+		s.logger.Info("Tearing down healthz server")
 		if err := s.teardownServer(s.healthz); err != nil {
 			s.logger.Error(err)
 		}
@@ -347,12 +303,44 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s Server) startServer(srv *HTTPServer) error {
+	s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
+
+	if srv.TLS {
+		if err := s.healthz.ListenAndServeTLS(srv.TLSCert, srv.TLSKey); err != nil {
+			if err == http.ErrServerClosed {
+				return nil
+			}
+
+			return err
+		}
+	} else {
+		if err := srv.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				return nil
+			}
+
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) teardownServer(srv *HTTPServer) error {
 	if err := srv.Shutdown(context.Background()); err != nil {
+		if err == http.ErrServerClosed {
+			return nil
+		}
+
 		return err
 	}
 
 	if err := srv.Close(); err != nil {
+		if err == http.ErrServerClosed {
+			return nil
+		}
+
 		return err
 	}
 

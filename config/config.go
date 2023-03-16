@@ -30,8 +30,11 @@ const (
 	ModeDev = "dev"
 )
 
+const appName = "xapi"
+
 func DefaultConfig() Config {
 	return Config{
+		App:  appName,
 		Mode: ModeDev,
 		Serve: &Servers{
 			Public: &Server{
@@ -51,6 +54,7 @@ func DefaultConfig() Config {
 }
 
 type Config struct {
+	App        string      `mapstructure:"app"`
 	Mode       string      `mapstructure:"mode"`
 	Serve      *Servers    `mapstructure:"serve"`
 	Cache      *Cache      `mapstructure:"cache"`

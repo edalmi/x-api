@@ -3,14 +3,18 @@ package handler
 import (
 	"net/http"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var reqs int64
+
 func NewUserHandler(opts HandlerOptions) *UserHandler {
 	return &UserHandler{
-		UserMetrics: newUserMetrics(opts.Metrics()),
+		UserMetrics: newUserMetrics(opts.App(), opts.Metrics()),
 		Options:     opts,
 	}
 }
@@ -29,11 +33,17 @@ func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
 func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
 	u.Options.Logger().Info(r.URL.Path)
 
+	time.Sleep(time.Duration(reqs) * time.Second)
+
+	atomic.AddInt64(&reqs, 100)
+
 	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
 	u.Options.Logger().Info(r.URL.Path)
+
+	time.Sleep(3 * time.Second)
 
 	u.UserMetrics.IncrementUsersDeleted()
 }
@@ -79,15 +89,15 @@ func (u *userMetrics) IncrementUsersDeleted() {
 	u.deletedUsers.Inc()
 }
 
-func newUserMetrics(reg prometheus.Registerer) *userMetrics {
+func newUserMetrics(app string, reg prometheus.Registerer) *userMetrics {
 	m := &userMetrics{
 		createdUsers: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "x",
+			Namespace: app,
 			Name:      "users_created",
 			Help:      "Number of created users",
 		}),
 		deletedUsers: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "x",
+			Namespace: app,
 			Name:      "users_deleted",
 			Help:      "Number of deleted users",
 		}),

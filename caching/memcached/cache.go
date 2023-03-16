@@ -33,3 +33,7 @@ func (c Cache) Get(ctx context.Context, key string) (string, error) {
 
 	return string(value.Value), nil
 }
+
+func (c Cache) Close() error {
+	return c.client.Close()
+}

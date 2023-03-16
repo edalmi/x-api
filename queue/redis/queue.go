@@ -39,9 +39,8 @@ func (r *Redis) Push(ctx context.Context, name string, msg queue.Message) error 
 
 func (r *Redis) Pull(ctx context.Context, name string) (<-chan *queue.Message, error) {
 	return nil, errors.New("error")
-
 }
 
 func (r *Redis) Close() error {
-	return errors.New("error")
+	return r.client.Close()
 }

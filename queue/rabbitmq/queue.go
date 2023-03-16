@@ -103,5 +103,5 @@ func (q *RabbitMQ) Pull(ctx context.Context, name string) (<-chan *queue.Message
 }
 
 func (q *RabbitMQ) Close() error {
-	return q.Close()
+	return q.conn.Close()
 }

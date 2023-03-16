@@ -23,6 +23,7 @@ import (
 
 func New(cfg *config.Config) (*Server, error) {
 	srv := &Server{
+		app:    cfg.App,
 		config: cfg,
 		logger: stdlog.New(log.Default()),
 	}
@@ -171,6 +172,7 @@ func (s *Server) setupAdminServer() error {
 }
 
 type Server struct {
+	app        string
 	config     *config.Config
 	db         *database.DB
 	cache      caching.Cache
@@ -183,6 +185,10 @@ type Server struct {
 	admin   *HTTPServer
 	metrics *HTTPServer
 	healthz *HTTPServer
+}
+
+func (s Server) App() string {
+	return s.app
 }
 
 func (s Server) Config() *config.Config {
@@ -285,27 +291,55 @@ func (s *Server) Start() error {
 	}()
 
 	defer func() {
-		s.logger.Info("Shutting down metrics server")
-		if err := s.metrics.Shutdown(context.Background()); err != nil {
-			s.logger.Warn(err)
+		s.logger.Info("Tearing down public server")
+		if err := s.teardownServer(s.public); err != nil {
+			s.logger.Error(err)
 		}
 
-		s.logger.Info("Shutting down public server")
-		if err := s.public.Shutdown(context.Background()); err != nil {
-			s.logger.Warn("X", err)
+		s.logger.Info("Tearing down public server")
+		if err := s.teardownServer(s.admin); err != nil {
+			s.logger.Error(err)
 		}
 
-		s.logger.Info("Shutting down admin server")
-		if err := s.admin.Shutdown(context.Background()); err != nil {
-			s.logger.Warn(err)
+		s.logger.Info("Tearing down public server")
+		if err := s.teardownServer(s.metrics); err != nil {
+			s.logger.Error(err)
 		}
 
-		s.logger.Info("Shutting down healthz server")
-		if err := s.healthz.Shutdown(context.Background()); err != nil {
-			s.logger.Warn(err)
+		s.logger.Info("Tearing down public server")
+		if err := s.teardownServer(s.healthz); err != nil {
+			s.logger.Error(err)
 		}
 
-		s.cleanUp()
+		s.logger.Info("Tearing down cache provider")
+		if err := s.teardownCache(); err != nil {
+			s.logger.Error(err)
+		}
+
+		s.logger.Info("Tearing down queue provider")
+		if err := s.teardownQueue(); err != nil {
+			s.logger.Error(err)
+		}
+
+		s.logger.Info("Tearing down pubsub provider")
+		if err := s.teardownPubsub(); err != nil {
+			s.logger.Error(err)
+		}
+
+		s.logger.Info("Tearing down queue provider")
+		if err := s.teardownQueue(); err != nil {
+			s.logger.Error(err)
+		}
+
+		s.logger.Info("Tearing down database provider")
+		if err := s.teardownDB(); err != nil {
+			s.logger.Error(err)
+		}
+
+		s.logger.Info("Tearing down logger provider")
+		if err := s.teardownLogger(); err != nil {
+			s.logger.Error(err)
+		}
 	}()
 
 	<-c
@@ -313,49 +347,53 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) cleanUp() error {
-	if err := s.closeOptions(); err != nil {
+func (s *Server) teardownServer(srv *HTTPServer) error {
+	if err := srv.Shutdown(context.Background()); err != nil {
 		return err
 	}
 
-	if err := s.admin.Close(); err != nil {
-		s.logger.Error(err)
-	}
-
-	if err := s.public.Close(); err != nil {
-		s.logger.Error(err)
-	}
-
-	if err := s.metrics.Close(); err != nil {
-		s.logger.Error(err)
-	}
-
-	if err := s.healthz.Close(); err != nil {
-		s.logger.Error(err)
+	if err := srv.Close(); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (s *Server) closeOptions() error {
+func (s *Server) teardownCache() error {
 	if c, ok := s.cache.(io.Closer); ok {
-		s.logger.Info("Freeing cache resources")
-		c.Close()
+		return c.Close()
 	}
 
+	return nil
+}
+
+func (s *Server) teardownPubsub() error {
 	if c, ok := s.pubsub.(io.Closer); ok {
-		s.logger.Info("Freeing pubsub resources")
-		c.Close()
+		return c.Close()
 	}
 
+	return nil
+}
+
+func (s *Server) teardownQueue() error {
 	if c, ok := s.queue.(io.Closer); ok {
-		s.logger.Info("Freeing queue resources")
-		c.Close()
+		return c.Close()
 	}
 
+	return nil
+}
+
+func (s *Server) teardownLogger() error {
 	if c, ok := s.logger.(io.Closer); ok {
-		s.logger.Info("Freeing logger resources")
-		c.Close()
+		return c.Close()
+	}
+
+	return nil
+}
+
+func (s *Server) teardownDB() error {
+	if c, ok := s.logger.(io.Closer); ok {
+		return c.Close()
 	}
 
 	return nil

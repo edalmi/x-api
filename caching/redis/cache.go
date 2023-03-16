@@ -11,3 +11,7 @@ func NewCache(rdb *redis.Client) *Cache {
 type Cache struct {
 	client *redis.Client
 }
+
+func (c Cache) Close() error {
+	return c.client.Close()
+}

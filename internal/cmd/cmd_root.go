@@ -49,9 +49,10 @@ func New() *cobra.Command {
 	cobra.OnInitialize(configLoad(v))
 
 	cmd.PersistentFlags().StringVarP(&configFile, flagConfig, "c", "", "Configuration file")
+	cmd.PersistentFlags().StringP("mode", "m", "", "Configuration file")
 
-	viper.SetEnvPrefix(envPrefix)
-	if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+	v.SetEnvPrefix(envPrefix)
+	if err := v.BindPFlags(cmd.PersistentFlags()); err != nil {
 		panic(err)
 	}
 

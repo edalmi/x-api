@@ -18,15 +18,21 @@ func New(v *viper.Viper) (*Config, error) {
 		return nil, err
 	}
 
-	if err := cfg.Validate(); err != nil {
+	/*	if err := cfg.Validate(); err != nil {
 		return nil, err
-	}
+	}*/
 
 	return &cfg, nil
 }
 
+const (
+	ModePro = "prod"
+	ModeDev = "dev"
+)
+
 func DefaultConfig() Config {
 	return Config{
+		Mode: ModeDev,
 		Serve: &Servers{
 			Public: &Server{
 				Port: portPublic,
@@ -45,6 +51,7 @@ func DefaultConfig() Config {
 }
 
 type Config struct {
+	Mode       string      `mapstructure:"mode"`
 	Serve      *Servers    `mapstructure:"serve"`
 	Cache      *Cache      `mapstructure:"cache"`
 	Pubsub     *Pubsub     `mapstructure:"pubsub"`

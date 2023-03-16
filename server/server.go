@@ -24,6 +24,11 @@ import (
 func New(cfg *config.Config) (*Server, error) {
 	srv := &Server{
 		config: cfg,
+		logger: stdlog.New(log.Default()),
+	}
+
+	if err := srv.setupLogger(); err != nil {
+		return nil, err
 	}
 
 	if err := srv.setupDB(); err != nil {
@@ -34,7 +39,7 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	if err := srv.setupLogger(); err != nil {
+	if err := srv.setupMetrics(); err != nil {
 		return nil, err
 	}
 
@@ -58,24 +63,26 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 func (s *Server) setupMetrics() error {
-	log.Println("setup metrics")
+	s.logger.Info("setup metrics")
 
-	s.logger = &stdlog.Logger{
-		Logger: log.Default(),
-	}
-
-	return nil
-}
-
-func (s *Server) setupLogger() error {
-	log.Println("setup metrics")
 	s.prometheus = prometheus.NewRegistry()
 
 	return nil
 }
 
+func (s *Server) setupLogger() error {
+	logger, err := setupLogger(s.config.Mode, s.config.Logger)
+	if err != nil {
+		return err
+	}
+
+	s.logger = logger
+	return nil
+}
+
 func (s *Server) setupDB() error {
-	log.Println("setup database")
+	s.logger.Info("setup database")
+
 	db, err := setupDB(s.config.DB)
 	if err != nil {
 		return err
@@ -86,7 +93,7 @@ func (s *Server) setupDB() error {
 }
 
 func (s *Server) setupCache() error {
-	log.Println("setup database")
+	s.logger.Info("setup database")
 
 	cache, err := setupCache(s.config.Cache)
 	if err != nil {
@@ -214,7 +221,7 @@ func (s *Server) Start() error {
 	s.logger.Info("PID:", os.Getpid())
 
 	go func() {
-		log.Printf("Starting public server at %v", s.public.Addr)
+		s.logger.Infof("Starting public server at %v", s.public.Addr)
 
 		if s.public.TLS {
 			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
@@ -230,7 +237,7 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
-		log.Printf("Starting admin at %v", s.admin.Addr)
+		s.logger.Infof("Starting admin at %v", s.admin.Addr)
 
 		if s.admin.TLS {
 			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
@@ -246,7 +253,7 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
-		log.Printf("Starting metrics server at %v", s.metrics.Addr)
+		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
 
 		if s.metrics.TLS {
 			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
@@ -262,7 +269,7 @@ func (s *Server) Start() error {
 	}()
 
 	go func() {
-		log.Printf("Starting healthz server at %v", s.healthz.Addr)
+		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
 
 		if s.healthz.TLS {
 			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {

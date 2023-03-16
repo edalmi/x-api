@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/edalmi/x-api/caching"
+	"github.com/edalmi/x-api/database"
 	"github.com/edalmi/x-api/logging"
 	"github.com/edalmi/x-api/pubsub"
 	"github.com/edalmi/x-api/queue"
@@ -9,6 +10,7 @@ import (
 )
 
 type Options struct {
+	db      *database.DB
 	cache   caching.Cache
 	logger  logging.Logger
 	pubsub  pubsub.Pubsub
@@ -34,4 +36,8 @@ func (o *Options) Queue() queue.Queue {
 
 func (o *Options) Metrics() prometheus.Registerer {
 	return o.metrics
+}
+
+func (o *Options) DB() *database.DB {
+	return o.db
 }

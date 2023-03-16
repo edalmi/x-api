@@ -24,6 +24,12 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	log.Println("setup database")
+	db, err := setupDB(cfg.DB)
+	if err != nil {
+		return nil, err
+	}
+
 	/*	log.Println("setup logger")
 		logger, err := setupLogger(cfg.Logger)
 		if err != nil {
@@ -43,9 +49,8 @@ func New(cfg *config.Config) (*Server, error) {
 		}*/
 
 	options := &Options{
+		db:    db,
 		cache: cache,
-		// Pubsub:  pubsub,
-		// Queue:   queue,
 		logger: &stdlog.Logger{
 			Logger: log.Default(),
 		},

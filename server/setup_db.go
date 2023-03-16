@@ -12,10 +12,6 @@ import (
 )
 
 func setupDB(cfg *config.DB) (*database.DB, error) {
-	if cfg == nil {
-		return nil, errors.New("cache is empty")
-	}
-
 	if cfg.Postgres != nil {
 		return postgres.New(cfg.Postgres.GetDSN())
 	}
@@ -32,5 +28,5 @@ func setupDB(cfg *config.DB) (*database.DB, error) {
 		return mariadb.New(cfg.MariaDB.GetDSN())
 	}
 
-	return nil, errors.New("error")
+	return nil, errors.New("no database configuration found")
 }

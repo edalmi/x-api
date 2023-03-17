@@ -90,7 +90,6 @@ func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {
 
 		time.Sleep(5 * time.Second)
 	}()
-
 }
 
 func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {
@@ -105,7 +104,6 @@ func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {
 
 		time.Sleep(5 * time.Second)
 	}()
-
 }
 
 func (u UserHandler) Routes() *chi.Mux {

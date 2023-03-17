@@ -240,7 +240,6 @@ func (s Server) Metrics() prometheus.Registerer {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-
 	c := make(chan os.Signal, 1)
 
 	signal.Notify(c, os.Interrupt)

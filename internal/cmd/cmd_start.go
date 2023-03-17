@@ -17,6 +17,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/server"
 	"github.com/spf13/cobra"
@@ -38,7 +40,7 @@ func NewCmdStart() *cobra.Command {
 				return err
 			}
 
-			return srv.Start()
+			return srv.Start(context.Background())
 		},
 	}
 

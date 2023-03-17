@@ -3,11 +3,13 @@ package handler
 import (
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var reqs int64
@@ -25,32 +27,86 @@ type UserHandler struct {
 }
 
 func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
+	_, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.CreateUser")
+	defer span.End()
+
 	u.Options.Logger().Info(r.URL.Path)
 
 	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.ListUsers")
+	defer span.End()
+
 	u.Options.Logger().Info(r.URL.Path)
 
-	time.Sleep(time.Duration(reqs) * time.Second)
+	time.Sleep(5 * time.Second)
 
-	atomic.AddInt64(&reqs, 100)
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(5 * time.Second)
+	}()
 
 	u.UserMetrics.IncrementUsersCreated()
 }
 
 func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
+	rid := uuid.NewString()
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.DeleteUser")
+	defer span.End()
+
+	u.Options.Logger().Infof("Request-ID: %v", rid)
+
+	span.SetAttributes(attribute.Key("request_id").String(rid))
+
 	u.Options.Logger().Info(r.URL.Path)
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
+
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(3 * time.Second)
+	}()
+
+	time.Sleep(1 * time.Second)
 
 	u.UserMetrics.IncrementUsersDeleted()
 }
 
-func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {}
+func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.GetUser")
+	defer span.End()
 
-func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {}
+	time.Sleep(5 * time.Second)
+
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(5 * time.Second)
+	}()
+
+}
+
+func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.UpdateUser")
+	defer span.End()
+
+	time.Sleep(5 * time.Second)
+
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(5 * time.Second)
+	}()
+
+}
 
 func (u UserHandler) Routes() *chi.Mux {
 	r := chi.NewRouter()

@@ -20,6 +20,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 func New(cfg *config.Config) (*Server, error) {
@@ -61,6 +64,10 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	if err := srv.setupOtel(); err != nil {
+		return nil, err
+	}
+
 	return srv, nil
 }
 
@@ -91,6 +98,17 @@ func (s *Server) setupDB() error {
 	}
 
 	s.db = db
+	return nil
+}
+
+func (s *Server) setupOtel() error {
+	t, err := setupOtel()
+	if err != nil {
+		return err
+	}
+
+	s.tracing = t
+	otel.SetTracerProvider(s.tracing)
 	return nil
 }
 
@@ -173,6 +191,7 @@ func (s *Server) setupAdminServer() error {
 }
 
 type Server struct {
+	tracing    *sdktrace.TracerProvider
 	app        string
 	config     *config.Config
 	db         *database.DB
@@ -220,37 +239,38 @@ func (s Server) Metrics() prometheus.Registerer {
 	return s.prometheus
 }
 
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
+
 	c := make(chan os.Signal, 1)
 
 	signal.Notify(c, os.Interrupt)
 	s.logger.Infof("PID: %d", os.Getpid())
 	s.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
 
-	go func() {
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
 		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
-		if err := s.startServer(s.publicServer); err != nil {
-			s.logger.Error(err)
-		}
-	}()
+		return s.startServer(s.publicServer)
+	})
 
-	go func() {
+	g.Go(func() error {
 		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
-		if err := s.startServer(s.adminServer); err != nil {
-			s.logger.Error(err)
-		}
-	}()
+		return s.startServer(s.adminServer)
+	})
 
-	go func() {
+	g.Go(func() error {
 		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
-		if err := s.startServer(s.metricsServer); err != nil {
-			s.logger.Error(err)
-		}
-	}()
+		return s.startServer(s.metricsServer)
+	})
+
+	g.Go(func() error {
+		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
+		return s.startServer(s.healthzServer)
+	})
 
 	go func() {
-		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
-		if err := s.startServer(s.healthzServer); err != nil {
+		if err := g.Wait(); err != nil {
 			s.logger.Error(err)
 		}
 	}()
@@ -343,14 +363,6 @@ func (s *Server) teardownServer(srv *httpServer) error {
 		return err
 	}
 
-	if err := srv.Close(); err != nil {
-		if err == http.ErrServerClosed {
-			return nil
-		}
-
-		return err
-	}
-
 	return nil
 }
 
@@ -389,6 +401,14 @@ func (s *Server) teardownLogger() error {
 func (s *Server) teardownDB() error {
 	if s.db != nil {
 		return s.db.Close()
+	}
+
+	return nil
+}
+
+func (s *Server) teardownOtel() error {
+	if s.db != nil {
+		return s.tracing.Shutdown(context.Background())
 	}
 
 	return nil

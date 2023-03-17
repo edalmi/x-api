@@ -63,6 +63,7 @@ type Config struct {
 	Queue      *Queue      `mapstructure:"queue"`
 	DB         *DB         `mapstructure:"db"`
 	Prometheus *Prometheus `mapstructure:"prometheus"`
+	Otel       *Otel       `mapstructure:"otel"`
 }
 
 func (c Config) Validate() error {

@@ -332,7 +332,7 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s Server) startServer(srv *httpServer) error {
-	if srv.tls {
+	if srv.useTLS {
 		if err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
 			if err == http.ErrServerClosed {
 				return nil

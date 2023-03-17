@@ -28,7 +28,7 @@ func setupHTTPServer(cfg *config.Server, handler http.Handler) (*httpServer, err
 			return nil, errors.New("key error")
 		}
 
-		srv.tls = true
+		srv.useTLS = true
 		srv.tlsCert = tlsCfg.Cert
 		srv.tlsKey = tlsCfg.Key
 	}
@@ -38,7 +38,7 @@ func setupHTTPServer(cfg *config.Server, handler http.Handler) (*httpServer, err
 
 type httpServer struct {
 	*http.Server
-	tls     bool
+	useTLS  bool
 	tlsCert string
 	tlsKey  string
 }

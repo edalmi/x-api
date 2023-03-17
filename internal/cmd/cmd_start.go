@@ -35,6 +35,7 @@ func NewCmdStart() *cobra.Command {
 				return err
 			}
 
+			// Initialize servers
 			srv, err := server.New(cfg)
 			if err != nil {
 				return err

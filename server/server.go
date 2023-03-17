@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"time"
 
 	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
@@ -240,9 +241,9 @@ func (s Server) Metrics() prometheus.Registerer {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	c := make(chan os.Signal, 1)
+	sig := make(chan os.Signal, 1)
 
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(sig, os.Interrupt)
 	s.logger.Infof("PID: %d", os.Getpid())
 	s.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
 
@@ -250,22 +251,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 	g.Go(func() error {
 		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
-		return s.startServer(s.publicServer)
+		return s.startHTTPServer(s.publicServer)
 	})
 
 	g.Go(func() error {
 		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
-		return s.startServer(s.adminServer)
+		return s.startHTTPServer(s.adminServer)
 	})
 
 	g.Go(func() error {
 		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
-		return s.startServer(s.metricsServer)
+		return s.startHTTPServer(s.metricsServer)
 	})
 
 	g.Go(func() error {
 		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
-		return s.startServer(s.healthzServer)
+		return s.startHTTPServer(s.healthzServer)
 	})
 
 	go func() {
@@ -276,63 +277,64 @@ func (s *Server) Start(ctx context.Context) error {
 
 	defer func() {
 		s.logger.Info("Tearing down public server")
-		if err := s.teardownServer(s.publicServer); err != nil {
+		if err := s.shutdownHTTPServer(s.publicServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down admin server")
-		if err := s.teardownServer(s.adminServer); err != nil {
+		if err := s.shutdownHTTPServer(s.adminServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down metrics server")
-		if err := s.teardownServer(s.metricsServer); err != nil {
+		if err := s.shutdownHTTPServer(s.metricsServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down healthz server")
-		if err := s.teardownServer(s.healthzServer); err != nil {
+		if err := s.shutdownHTTPServer(s.healthzServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down cache provider")
-		if err := s.teardownCache(); err != nil {
+		if err := s.releaseCache(); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down queue provider")
-		if err := s.teardownQueue(); err != nil {
+		if err := s.releaseQueue(); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down pubsub provider")
-		if err := s.teardownPubsub(); err != nil {
+		if err := s.releasePubsub(); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down queue provider")
-		if err := s.teardownQueue(); err != nil {
+		if err := s.releaseQueue(); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down database provider")
-		if err := s.teardownDB(); err != nil {
+		if err := s.releaseDB(); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down logger provider")
-		if err := s.teardownLogger(); err != nil {
+		if err := s.releaseLogger(); err != nil {
 			s.logger.Error(err)
 		}
 	}()
 
-	<-c
+	<-sig
+	s.logger.Info("Shutting down servers")
 
 	return nil
 }
 
-func (s Server) startServer(srv *httpServer) error {
-	if srv.tls {
+func (s Server) startHTTPServer(srv *httpServer) error {
+	if srv.useTLS {
 		if err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
 			if err == http.ErrServerClosed {
 				return nil
@@ -353,8 +355,11 @@ func (s Server) startServer(srv *httpServer) error {
 	return nil
 }
 
-func (s *Server) teardownServer(srv *httpServer) error {
-	if err := srv.Shutdown(context.Background()); err != nil {
+func (s *Server) shutdownHTTPServer(srv *httpServer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
 		if err == http.ErrServerClosed {
 			return nil
 		}
@@ -365,7 +370,7 @@ func (s *Server) teardownServer(srv *httpServer) error {
 	return nil
 }
 
-func (s *Server) teardownCache() error {
+func (s *Server) releaseCache() error {
 	if c, ok := s.cache.(io.Closer); ok {
 		return c.Close()
 	}
@@ -373,7 +378,7 @@ func (s *Server) teardownCache() error {
 	return nil
 }
 
-func (s *Server) teardownPubsub() error {
+func (s *Server) releasePubsub() error {
 	if c, ok := s.pubsub.(io.Closer); ok {
 		return c.Close()
 	}
@@ -381,7 +386,7 @@ func (s *Server) teardownPubsub() error {
 	return nil
 }
 
-func (s *Server) teardownQueue() error {
+func (s *Server) releaseQueue() error {
 	if c, ok := s.queue.(io.Closer); ok {
 		return c.Close()
 	}
@@ -389,7 +394,7 @@ func (s *Server) teardownQueue() error {
 	return nil
 }
 
-func (s *Server) teardownLogger() error {
+func (s *Server) releaseLogger() error {
 	if c, ok := s.logger.(io.Closer); ok {
 		return c.Close()
 	}
@@ -397,7 +402,7 @@ func (s *Server) teardownLogger() error {
 	return nil
 }
 
-func (s *Server) teardownDB() error {
+func (s *Server) releaseDB() error {
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -405,7 +410,7 @@ func (s *Server) teardownDB() error {
 	return nil
 }
 
-func (s *Server) teardownOtel() error {
+func (s *Server) releaseOtel() error {
 	if s.db != nil {
 		return s.tracing.Shutdown(context.Background())
 	}

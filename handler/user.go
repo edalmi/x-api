@@ -36,18 +36,25 @@ func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.ListUsers")
+	_, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.ListUsers")
 	defer span.End()
 
 	u.Options.Logger().Info(r.URL.Path)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	func() {
-		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
-		defer span.End()
+		span.AddEvent("start_wait")
+		defer span.AddEvent("end_wait")
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
+	}()
+
+	func() {
+		span.AddEvent("start_wait")
+		defer span.AddEvent("end_wait")
+
+		time.Sleep(1 * time.Second)
 	}()
 
 	u.UserMetrics.IncrementUsersCreated()

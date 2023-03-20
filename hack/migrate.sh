@@ -22,6 +22,11 @@ case "$1" in
     mariadb)
         do_migrate mariadb "$2"
         ;;
+    all)
+        for i in mariadb postgres sqlite mysql; do
+            do_migrate "$i" "$2"
+        done
+        ;;
     *)
         usage
         ;;

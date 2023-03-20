@@ -20,7 +20,7 @@ import (
 	"github.com/edalmi/x-api/pubsub"
 	"github.com/edalmi/x-api/queue"
 	"github.com/go-chi/chi/v5"
-	"github.com/prometheus/client_golang/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -75,7 +75,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 func (s *Server) setupPrometheus() error {
 	s.logger.Info("setting up metrics provider")
-	s.prometheus = prometheus.NewRegistry()
+	s.prometheus = prom.NewRegistry()
 
 	return nil
 }
@@ -143,7 +143,7 @@ func (s *Server) setupHealthzServer() error {
 
 func (s *Server) setupMetrcisServer() error {
 	handler := promhttp.HandlerFor(
-		s.prometheus.(*prometheus.Registry),
+		s.prometheus.(*prom.Registry),
 		promhttp.HandlerOpts{
 			Registry: s.prometheus,
 		},
@@ -166,6 +166,7 @@ func (s *Server) setupPublicServer() error {
 	)
 
 	router := chi.NewRouter()
+
 	router.Mount("/users", usersHandler.Routes())
 	router.Mount("/groups", groupsHandler.Routes())
 
@@ -200,7 +201,7 @@ type Server struct {
 	logger     logging.Logger
 	pubsub     pubsub.Pubsub
 	queue      queue.Queue
-	prometheus prometheus.Registerer
+	prometheus prom.Registerer
 	httpServers
 }
 
@@ -239,95 +240,107 @@ func (s Server) DB() *database.DB {
 	return s.db
 }
 
-func (s Server) Prometheus() prometheus.Registerer {
+func (s Server) Prometheus() prom.Registerer {
 	return s.prometheus
 }
 
-func (s *Server) Start(ctx context.Context) error {
+func (srv *Server) Start(ctx context.Context) error {
 	sig := make(chan os.Signal, 1)
 
 	signal.Notify(sig, os.Interrupt)
 
-	s.logger.Infof("PID: %d", os.Getpid())
-	s.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
+	srv.logger.Infof("PID: %d", os.Getpid())
+	srv.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
 
 	g := new(errgroup.Group)
 
 	g.Go(func() error {
-		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
-		return s.startHTTPServer(s.publicServer)
+		srv.logger.Infof("Starting public server at %v", srv.publicServer.Addr)
+		return srv.startHTTPServer(srv.publicServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
-		return s.startHTTPServer(s.adminServer)
+		srv.logger.Infof("Starting admin at %v", srv.adminServer.Addr)
+		return srv.startHTTPServer(srv.adminServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
-		return s.startHTTPServer(s.metricsServer)
+		srv.logger.Infof("Starting metrics server at %v", srv.metricsServer.Addr)
+		return srv.startHTTPServer(srv.metricsServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
-		return s.startHTTPServer(s.healthzServer)
+		srv.logger.Infof("Starting healthz server at %v", srv.healthzServer.Addr)
+		return srv.startHTTPServer(srv.healthzServer)
 	})
 
 	go func() {
 		if err := g.Wait(); err != nil {
-			s.logger.Error(err)
+			srv.logger.Error(err)
 		}
 	}()
 
 	defer func() {
-		s.logger.Info("Tearing down public server")
-		if err := s.shutdownHTTPServer(s.publicServer); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down public server")
+		if err := srv.shutdownHTTPServer(
+			srv.publicServer,
+			time.Duration(srv.config.Serve.Public.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down admin server")
-		if err := s.shutdownHTTPServer(s.adminServer); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down admin server")
+		if err := srv.shutdownHTTPServer(
+			srv.adminServer,
+			time.Duration(srv.config.Serve.Admin.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down metrics server")
-		if err := s.shutdownHTTPServer(s.metricsServer); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down metrics server")
+		if err := srv.shutdownHTTPServer(
+			srv.metricsServer,
+			time.Duration(srv.config.Serve.Metrics.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down healthz server")
-		if err := s.shutdownHTTPServer(s.healthzServer); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down healthz server")
+		if err := srv.shutdownHTTPServer(
+			srv.healthzServer,
+			time.Duration(srv.config.Serve.Healthz.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down cache provider")
-		if err := release(s.cache); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down cache provider")
+		if err := release(srv.cache); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down pubsub provider")
-		if err := release(s.pubsub); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down pubsub provider")
+		if err := release(srv.pubsub); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down queue provider")
-		if err := release(s.queue); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down queue provider")
+		if err := release(srv.queue); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down database provider")
-		if err := release(s.db); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down database provider")
+		if err := release(srv.db); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.logger.Info("Tearing down logger provider")
-		if err := release(s.logger); err != nil {
-			s.logger.Error(err)
+		srv.logger.Info("Tearing down logger provider")
+		if err := release(srv.logger); err != nil {
+			srv.logger.Error(err)
 		}
 	}()
 
 	<-sig
-	s.logger.Info("Shutting down servers")
+	srv.logger.Info("Shutting down servers")
 
 	return nil
 }
@@ -373,8 +386,8 @@ func (s *Server) releaseOtel() error {
 	return nil
 }
 
-func release(v interface{}) error {
-	if c, ok := v.(io.Closer); ok {
+func release(resource interface{}) error {
+	if c, ok := resource.(io.Closer); ok {
 		return c.Close()
 	}
 

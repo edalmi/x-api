@@ -1,53 +1,119 @@
 package handler
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"sync"
+	"time"
 
-	"github.com/edalmi/x-api"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
-func NewUser(opts *xapi.Options) *User {
-	return &User{
-		metrics: newUserMetrics(opts.Metrics),
-		opts:    opts,
+var reqs int64
+
+func NewUserHandler(opts HandlerOpts) *UserHandler {
+	return &UserHandler{
+		UserMetrics: newUserMetrics(opts.ID(), opts.Metrics()),
+		Options:     opts,
 	}
 }
 
-type User struct {
-	metrics *userMetrics
-	opts    *xapi.Options
+type UserHandler struct {
+	UserMetrics UserMetrics
+	Options     HandlerOpts
 }
 
-func (u *User) CreateUser(rw http.ResponseWriter, r *http.Request) {
-	u.metrics.incrementCreatedUsers()
+func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {
+	_, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.CreateUser")
+	defer span.End()
+
+	u.Options.Logger().Info(r.URL.Path)
+
+	u.UserMetrics.IncrementUsersCreated()
 }
 
-func (u User) ListUsers(rw http.ResponseWriter, r *http.Request) {
-	log := log.New(os.Stdout, "users", 0)
-	log.SetPrefix("users")
-	log.Println(r.URL.Path)
+func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
+	_, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.ListUsers")
+	defer span.End()
 
-	u.metrics.incrementCreatedUsers()
+	u.Options.Logger().Info(r.URL.Path)
+
+	time.Sleep(3 * time.Second)
+
+	func() {
+		span.AddEvent("start_wait")
+		defer span.AddEvent("end_wait")
+
+		time.Sleep(2 * time.Second)
+	}()
+
+	func() {
+		span.AddEvent("start_wait")
+		defer span.AddEvent("end_wait")
+
+		time.Sleep(1 * time.Second)
+	}()
+
+	u.UserMetrics.IncrementUsersCreated()
 }
 
-func (u User) DeleteUser(rw http.ResponseWriter, r *http.Request) {
-	log := log.New(os.Stdout, "users", 0)
-	log.SetPrefix("users")
-	log.Println(r.URL.Path)
+func (u UserHandler) DeleteUser(rw http.ResponseWriter, r *http.Request) {
+	rid := uuid.NewString()
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.DeleteUser")
+	defer span.End()
 
-	u.metrics.incrementDeletedUsers()
+	u.Options.Logger().Infof("Request-ID: %v", rid)
+
+	span.SetAttributes(attribute.Key("request_id").String(rid))
+
+	u.Options.Logger().Info(r.URL.Path)
+
+	time.Sleep(2 * time.Second)
+
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(3 * time.Second)
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	u.UserMetrics.IncrementUsersDeleted()
 }
 
-func (u User) GetUser(rw http.ResponseWriter, r *http.Request) {}
+func (u UserHandler) GetUser(rw http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.GetUser")
+	defer span.End()
 
-func (u User) UpdateUser(rw http.ResponseWriter, r *http.Request) {}
+	time.Sleep(5 * time.Second)
 
-func (u User) Routes() *chi.Mux {
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(5 * time.Second)
+	}()
+}
+
+func (u UserHandler) UpdateUser(rw http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.UpdateUser")
+	defer span.End()
+
+	time.Sleep(5 * time.Second)
+
+	func() {
+		_, span := otel.Tracer(u.Options.ID()).Start(ctx, "users.ListUsers.Wait")
+		defer span.End()
+
+		time.Sleep(5 * time.Second)
+	}()
+}
+
+func (u UserHandler) Routes() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/", u.ListUsers)
@@ -59,35 +125,40 @@ func (u User) Routes() *chi.Mux {
 	return r
 }
 
+type UserMetrics interface {
+	IncrementUsersCreated()
+	IncrementUsersDeleted()
+}
+
 type userMetrics struct {
 	mu           sync.Mutex
 	createdUsers prometheus.Counter
 	deletedUsers prometheus.Counter
 }
 
-func (u *userMetrics) incrementCreatedUsers() {
+func (u *userMetrics) IncrementUsersCreated() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	u.createdUsers.Inc()
 }
 
-func (u *userMetrics) incrementDeletedUsers() {
+func (u *userMetrics) IncrementUsersDeleted() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	u.deletedUsers.Inc()
 }
 
-func newUserMetrics(reg prometheus.Registerer) *userMetrics {
+func newUserMetrics(app string, reg prometheus.Registerer) *userMetrics {
 	m := &userMetrics{
 		createdUsers: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "x",
+			Namespace: app,
 			Name:      "users_created",
 			Help:      "Number of created users",
 		}),
 		deletedUsers: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "x",
+			Namespace: app,
 			Name:      "users_deleted",
 			Help:      "Number of deleted users",
 		}),

@@ -1,29 +1,29 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/edalmi/x-api"
 	"github.com/go-chi/chi/v5"
 )
 
-func NewGroup(_ *xapi.Options) *Group {
-	return &Group{}
+func NewGroupHandler(_ HandlerOpts) *GroupHandler {
+	return &GroupHandler{}
 }
 
-type Group struct {
-	opts xapi.Options
+type GroupHandler struct {
+	opts HandlerOpts
 }
 
-func (u Group) CreateGroup(rw http.ResponseWriter, r *http.Request) {}
+func (u GroupHandler) CreateGroup(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) ListGroups(rw http.ResponseWriter, r *http.Request) {}
+func (u GroupHandler) ListGroups(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) DeleteGroup(rw http.ResponseWriter, r *http.Request) {}
+func (u GroupHandler) DeleteGroup(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) GetGroup(rw http.ResponseWriter, r *http.Request) {}
+func (u GroupHandler) GetGroup(rw http.ResponseWriter, r *http.Request) {}
 
-func (u Group) Routes() *chi.Mux {
+func (u GroupHandler) Routes() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/", u.ListGroups)
@@ -32,4 +32,12 @@ func (u Group) Routes() *chi.Mux {
 	r.Delete("/", u.DeleteGroup)
 
 	return r
+}
+
+type GroupCreate struct{}
+
+type Group struct{}
+
+type GroupService interface {
+	CreateUser(ctx context.Context, g GroupCreate) (*Group, error)
 }

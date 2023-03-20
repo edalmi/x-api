@@ -3,16 +3,15 @@ package handler
 import (
 	"net/http"
 
-	"github.com/edalmi/x-api"
 	"github.com/go-chi/chi/v5"
 )
 
-func NewHealthz(_ *xapi.Options) *Healthz {
+func NewHealthz(_ HandlerOpts) *Healthz {
 	return &Healthz{}
 }
 
 type Healthz struct {
-	opts xapi.Options
+	opts HandlerOpts
 }
 
 func (u Healthz) Live(rw http.ResponseWriter, r *http.Request) {}

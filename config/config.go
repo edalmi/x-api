@@ -18,11 +18,24 @@ func New(v *viper.Viper) (*Config, error) {
 		return nil, err
 	}
 
+	/*	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}*/
+
 	return &cfg, nil
 }
 
+const (
+	ModePro = "prod"
+	ModeDev = "dev"
+)
+
+const appName = "xapi"
+
 func DefaultConfig() Config {
 	return Config{
+		App:  appName,
+		Mode: ModeDev,
 		Serve: &Servers{
 			Public: &Server{
 				Port: portPublic,
@@ -41,9 +54,36 @@ func DefaultConfig() Config {
 }
 
 type Config struct {
-	Serve  *Servers `mapstructure:"serve"`
-	Cache  *Cache   `mapstructure:"cache"`
-	Pubsub *Pubsub  `mapstructure:"pubsub"`
-	Logger *Logger  `mapstructure:"logger"`
-	Queue  *Queue   `mapstructure:"queue"`
+	App        string      `mapstructure:"app"`
+	Mode       string      `mapstructure:"mode"`
+	Serve      *Servers    `mapstructure:"serve"`
+	Cache      *Cache      `mapstructure:"cache"`
+	Pubsub     *Pubsub     `mapstructure:"pubsub"`
+	Logger     *Logger     `mapstructure:"logger"`
+	Queue      *Queue      `mapstructure:"queue"`
+	DB         *DB         `mapstructure:"db"`
+	Prometheus *Prometheus `mapstructure:"prometheus"`
+	Otel       *Otel       `mapstructure:"otel"`
+}
+
+func (c Config) Validate() error {
+	parts := []interface{}{
+		c.Serve,
+		c.Cache,
+		c.Pubsub,
+		c.Logger,
+		c.Queue,
+		c.DB,
+		c.Prometheus,
+	}
+
+	for _, i := range parts {
+		if part, ok := i.(interface{ Validate() error }); ok {
+			if err := part.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

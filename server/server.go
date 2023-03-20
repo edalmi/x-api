@@ -2,60 +2,52 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
+	"runtime"
+	"time"
 
-	"github.com/edalmi/x-api"
+	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
+	"github.com/edalmi/x-api/database"
 	"github.com/edalmi/x-api/handler"
-	"github.com/edalmi/x-api/stdlog"
+	"github.com/edalmi/x-api/logging"
+	stdlog "github.com/edalmi/x-api/logging/log"
+	"github.com/edalmi/x-api/pubsub"
+	"github.com/edalmi/x-api/queue"
 	"github.com/go-chi/chi/v5"
-	"github.com/prometheus/client_golang/prometheus"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 func New(cfg *config.Config) (*Server, error) {
-	log.Println("setup cache")
-	cache, err := setupCache(cfg.Cache)
-	if err != nil {
+	srv := &Server{
+		id:     cfg.App,
+		config: cfg,
+		logger: stdlog.New(log.Default()),
+	}
+
+	if err := srv.setupLogger(); err != nil {
 		return nil, err
 	}
 
-	/*	log.Println("setup logger")
-		logger, err := setupLogger(cfg.Logger)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Println("setup pubsub")
-		pubsub, err := setupPubsub(cfg.Pubsub)
-		if err != nil {
-			return nil, err
-		}
-
-		log.Println("setup queue")
-		queue, err := setupQueue(cfg.Queue)
-		if err != nil {
-			return nil, err
-		}*/
-
-	options := &xapi.Options{
-		Cache: cache,
-		//Pubsub:  pubsub,
-		//Queue:   queue,
-		Logger: &stdlog.Logger{
-			Logger: log.Default(),
-		},
-		Metrics: prometheus.NewRegistry(),
+	if err := srv.setupDB(); err != nil {
+		return nil, err
 	}
 
-	srv := &Server{
-		cfg:     cfg,
-		options: options,
+	if err := srv.setupCache(); err != nil {
+		return nil, err
+	}
+
+	if err := srv.setupPrometheus(); err != nil {
+		return nil, err
 	}
 
 	if err := srv.setupAdminServer(); err != nil {
@@ -74,227 +66,329 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	if err := srv.setupOtel(); err != nil {
+		return nil, err
+	}
+
 	return srv, nil
 }
 
-func (s *Server) setupHealthzServer() error {
-	handler := handler.NewHealthz(s.options)
+func (s *Server) setupPrometheus() error {
+	s.logger.Info("setting up metrics provider")
+	s.prometheus = prom.NewRegistry()
 
-	router := chi.NewRouter()
-	router.Mount("/healthz", handler.Routes())
+	return nil
+}
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Healthz, router)
+func (s *Server) setupLogger() error {
+	logger, err := setupLogger(s.config.Mode, s.config.Logger)
 	if err != nil {
 		return err
 	}
 
-	s.healthz = srv
+	s.logger = logger
+	return nil
+}
+
+func (s *Server) setupDB() error {
+	s.logger.Info("setting up database")
+
+	db, err := setupDB(s.config.DB)
+	if err != nil {
+		return err
+	}
+
+	s.db = db
+	return nil
+}
+
+func (s *Server) setupOtel() error {
+	t, err := setupOtel()
+	if err != nil {
+		return err
+	}
+
+	s.tracing = t
+	otel.SetTracerProvider(s.tracing)
+	return nil
+}
+
+func (s *Server) setupCache() error {
+	s.logger.Info("setting up cache provider")
+
+	cache, err := setupCache(s.config.Cache)
+	if err != nil {
+		return err
+	}
+
+	s.cache = cache
+	return nil
+}
+
+func (s *Server) setupHealthzServer() error {
+	handler := handler.NewHealthz(s)
+
+	router := chi.NewRouter()
+	router.Mount("/healthz", handler.Routes())
+
+	srv, err := setupHTTPServer(s.config.Serve.Healthz, router)
+	if err != nil {
+		return err
+	}
+
+	s.healthzServer = srv
 
 	return nil
 }
 
 func (s *Server) setupMetrcisServer() error {
 	handler := promhttp.HandlerFor(
-		s.options.Metrics.(*prometheus.Registry),
+		s.prometheus.(*prom.Registry),
 		promhttp.HandlerOpts{
-			Registry: s.options.Metrics,
+			Registry: s.prometheus,
 		},
 	)
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Metrics, handler)
+	srv, err := setupHTTPServer(s.config.Serve.Metrics, handler)
 	if err != nil {
 		return err
 	}
 
-	s.metrics = srv
+	s.metricsServer = srv
 
 	return nil
 }
 
 func (s *Server) setupPublicServer() error {
 	var (
-		users  = handler.NewUser(s.options)
-		groups = handler.NewGroup(s.options)
+		usersHandler  = handler.NewUserHandler(s)
+		groupsHandler = handler.NewGroupHandler(s)
 	)
 
 	router := chi.NewRouter()
-	router.Mount("/users", users.Routes())
-	router.Mount("/groups", groups.Routes())
 
-	srv, err := setupHTTPServer(s.cfg.Serve.Public, router)
+	router.Mount("/users", usersHandler.Routes())
+	router.Mount("/groups", groupsHandler.Routes())
+
+	srv, err := setupHTTPServer(s.config.Serve.Public, router)
 	if err != nil {
 		return err
 	}
 
-	s.public = srv
+	s.publicServer = srv
 
 	return nil
 }
 
 func (s *Server) setupAdminServer() error {
 	router := http.NewServeMux()
-	srv, err := setupHTTPServer(s.cfg.Serve.Admin, router)
+	srv, err := setupHTTPServer(s.config.Serve.Admin, router)
 	if err != nil {
 		return err
 	}
 
-	s.admin = srv
+	s.adminServer = srv
 
 	return nil
 }
 
 type Server struct {
-	cfg     *config.Config
-	options *xapi.Options
-	public  *HTTPServer
-	admin   *HTTPServer
-	metrics *HTTPServer
-	healthz *HTTPServer
+	tracing    *sdktrace.TracerProvider
+	id         string
+	config     *config.Config
+	db         *database.DB
+	cache      caching.Cache
+	logger     logging.Logger
+	pubsub     pubsub.Pubsub
+	queue      queue.Queue
+	prometheus prom.Registerer
+	httpServers
 }
 
-func (s *Server) Start() error {
-	c := make(chan os.Signal, 1)
+type httpServers struct {
+	publicServer  *httpServer
+	adminServer   *httpServer
+	metricsServer *httpServer
+	healthzServer *httpServer
+}
 
-	signal.Notify(c, syscall.SIGINT)
+func (s Server) ID() string {
+	return s.id
+}
 
-	s.options.Logger.Info("PID:", os.Getpid())
+func (s Server) Config() *config.Config {
+	return s.config
+}
+
+func (s Server) Logger() logging.Logger {
+	return s.logger
+}
+
+func (s Server) Cache() caching.Cache {
+	return s.cache
+}
+
+func (s Server) Queue() queue.Queue {
+	return s.queue
+}
+
+func (s Server) Pubsub() pubsub.Pubsub {
+	return s.pubsub
+}
+
+func (s Server) DB() *database.DB {
+	return s.db
+}
+
+func (s Server) Prometheus() prom.Registerer {
+	return s.prometheus
+}
+
+func (srv *Server) Start(ctx context.Context) error {
+	sig := make(chan os.Signal, 1)
+
+	signal.Notify(sig, os.Interrupt)
+
+	srv.logger.Infof("PID: %d", os.Getpid())
+	srv.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		srv.logger.Infof("Starting public server at %v", srv.publicServer.Addr)
+		return srv.startHTTPServer(srv.publicServer)
+	})
+
+	g.Go(func() error {
+		srv.logger.Infof("Starting admin at %v", srv.adminServer.Addr)
+		return srv.startHTTPServer(srv.adminServer)
+	})
+
+	g.Go(func() error {
+		srv.logger.Infof("Starting metrics server at %v", srv.metricsServer.Addr)
+		return srv.startHTTPServer(srv.metricsServer)
+	})
+
+	g.Go(func() error {
+		srv.logger.Infof("Starting healthz server at %v", srv.healthzServer.Addr)
+		return srv.startHTTPServer(srv.healthzServer)
+	})
 
 	go func() {
-		log.Printf("Starting public server at %v", s.public.Addr)
-
-		if s.public.TLS {
-			if err := s.public.ListenAndServeTLS(s.public.TLSCert, s.public.TLSKey); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.public.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		}
-	}()
-
-	go func() {
-		log.Printf("Starting admin at %v", s.admin.Addr)
-
-		if s.admin.TLS {
-			if err := s.admin.ListenAndServeTLS(s.admin.TLSCert, s.admin.TLSKey); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.admin.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		}
-	}()
-
-	go func() {
-		log.Printf("Starting metrics server at %v", s.metrics.Addr)
-
-		if s.metrics.TLS {
-			if err := s.metrics.ListenAndServeTLS(s.metrics.TLSCert, s.metrics.TLSKey); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.metrics.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		}
-	}()
-
-	go func() {
-		log.Printf("Starting healthz server at %v", s.healthz.Addr)
-
-		if s.healthz.TLS {
-			if err := s.healthz.ListenAndServeTLS(s.healthz.TLSCert, s.healthz.TLSKey); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
-		} else {
-			if err := s.healthz.ListenAndServe(); err != nil {
-				s.options.Logger.Error(err)
-				return
-			}
+		if err := g.Wait(); err != nil {
+			srv.logger.Error(err)
 		}
 	}()
 
 	defer func() {
-		s.options.Logger.Info("Shutting down metrics server")
-		if err := s.metrics.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+		srv.logger.Info("Tearing down public server")
+		if err := srv.shutdownHTTPServer(
+			srv.publicServer,
+			time.Duration(srv.config.Serve.Public.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.options.Logger.Info("Shutting down public server")
-		if err := s.public.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn("X", err)
+		srv.logger.Info("Tearing down admin server")
+		if err := srv.shutdownHTTPServer(
+			srv.adminServer,
+			time.Duration(srv.config.Serve.Admin.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.options.Logger.Info("Shutting down admin server")
-		if err := s.admin.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+		srv.logger.Info("Tearing down metrics server")
+		if err := srv.shutdownHTTPServer(
+			srv.metricsServer,
+			time.Duration(srv.config.Serve.Metrics.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.options.Logger.Info("Shutting down healthz server")
-		if err := s.healthz.Shutdown(context.Background()); err != nil {
-			s.options.Logger.Warn(err)
+		srv.logger.Info("Tearing down healthz server")
+		if err := srv.shutdownHTTPServer(
+			srv.healthzServer,
+			time.Duration(srv.config.Serve.Healthz.ShutdownTimeout),
+		); err != nil {
+			srv.logger.Error(err)
 		}
 
-		s.cleanUp()
+		srv.logger.Info("Tearing down cache provider")
+		if err := release(srv.cache); err != nil {
+			srv.logger.Error(err)
+		}
+
+		srv.logger.Info("Tearing down pubsub provider")
+		if err := release(srv.pubsub); err != nil {
+			srv.logger.Error(err)
+		}
+
+		srv.logger.Info("Tearing down queue provider")
+		if err := release(srv.queue); err != nil {
+			srv.logger.Error(err)
+		}
+
+		srv.logger.Info("Tearing down database provider")
+		if err := release(srv.db); err != nil {
+			srv.logger.Error(err)
+		}
+
+		srv.logger.Info("Tearing down logger provider")
+		if err := release(srv.logger); err != nil {
+			srv.logger.Error(err)
+		}
 	}()
 
-	<-c
+	<-sig
+	srv.logger.Info("Shutting down servers")
 
 	return nil
 }
 
-func (s *Server) cleanUp() error {
-	if err := s.closeOptions(); err != nil {
+func (s Server) startHTTPServer(srv *httpServer) error {
+	if srv.useTLS {
+		err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey)
+		if !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+
 		return err
 	}
 
-	if err := s.admin.Close(); err != nil {
-		s.options.Logger.Error(err)
+	err := srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
 
-	if err := s.public.Close(); err != nil {
-		s.options.Logger.Error(err)
-	}
+	return err
+}
 
-	if err := s.metrics.Close(); err != nil {
-		s.options.Logger.Error(err)
-	}
+func (s *Server) shutdownHTTPServer(srv *httpServer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	if err := s.healthz.Close(); err != nil {
-		s.options.Logger.Error(err)
+	if err := srv.Shutdown(ctx); err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+
+		return err
 	}
 
 	return nil
 }
 
-func (s *Server) closeOptions() error {
-	if c, ok := s.options.Cache.(io.Closer); ok {
-		s.options.Logger.Info("Freeing cache resources")
-		c.Close()
+func (s *Server) releaseOtel() error {
+	if s.db != nil {
+		return s.tracing.Shutdown(context.Background())
 	}
 
-	if c, ok := s.options.Pubsub.(io.Closer); ok {
-		s.options.Logger.Info("Freeing pubsub resources")
-		c.Close()
-	}
+	return nil
+}
 
-	if c, ok := s.options.Queue.(io.Closer); ok {
-		s.options.Logger.Info("Freeing queue resources")
-		c.Close()
-	}
-
-	if c, ok := s.options.Logger.(io.Closer); ok {
-		s.options.Logger.Info("Freeing logger resources")
-		c.Close()
+func release(resource interface{}) error {
+	if c, ok := resource.(io.Closer); ok {
+		return c.Close()
 	}
 
 	return nil

@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"errors"
 	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/database"
@@ -333,24 +334,20 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s Server) startHTTPServer(srv *httpServer) error {
 	if srv.useTLS {
-		if err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey); err != nil {
-			if err == http.ErrServerClosed {
-				return nil
-			}
-
+		err := srv.ListenAndServeTLS(srv.tlsCert, srv.tlsKey)
+		if !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
-	} else {
-		if err := srv.ListenAndServe(); err != nil {
-			if err == http.ErrServerClosed {
-				return nil
-			}
 
-			return err
-		}
+		return err
 	}
 
-	return nil
+	err := srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	return err
 }
 
 func (s *Server) shutdownHTTPServer(srv *httpServer) error {
@@ -358,7 +355,7 @@ func (s *Server) shutdownHTTPServer(srv *httpServer) error {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 

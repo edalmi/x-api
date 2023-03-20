@@ -28,7 +28,7 @@ import (
 
 func New(cfg *config.Config) (*Server, error) {
 	srv := &Server{
-		app:    cfg.App,
+		id:     cfg.App,
 		config: cfg,
 		logger: stdlog.New(log.Default()),
 	}
@@ -45,7 +45,7 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	if err := srv.setupMetrics(); err != nil {
+	if err := srv.setupPrometheus(); err != nil {
 		return nil, err
 	}
 
@@ -72,9 +72,8 @@ func New(cfg *config.Config) (*Server, error) {
 	return srv, nil
 }
 
-func (s *Server) setupMetrics() error {
+func (s *Server) setupPrometheus() error {
 	s.logger.Info("setting up metrics provider")
-
 	s.prometheus = prometheus.NewRegistry()
 
 	return nil
@@ -136,7 +135,7 @@ func (s *Server) setupHealthzServer() error {
 		return err
 	}
 
-	s.healthzServer = srv
+	s.healthz = srv
 
 	return nil
 }
@@ -154,7 +153,7 @@ func (s *Server) setupMetrcisServer() error {
 		return err
 	}
 
-	s.metricsServer = srv
+	s.metrics = srv
 
 	return nil
 }
@@ -174,7 +173,7 @@ func (s *Server) setupPublicServer() error {
 		return err
 	}
 
-	s.publicServer = srv
+	s.public = srv
 
 	return nil
 }
@@ -186,14 +185,14 @@ func (s *Server) setupAdminServer() error {
 		return err
 	}
 
-	s.adminServer = srv
+	s.admin = srv
 
 	return nil
 }
 
 type Server struct {
 	tracing    *sdktrace.TracerProvider
-	app        string
+	id         string
 	config     *config.Config
 	db         *database.DB
 	cache      caching.Cache
@@ -201,15 +200,18 @@ type Server struct {
 	pubsub     pubsub.Pubsub
 	queue      queue.Queue
 	prometheus prometheus.Registerer
+	httpServers
+}
 
-	publicServer  *httpServer
-	adminServer   *httpServer
-	metricsServer *httpServer
-	healthzServer *httpServer
+type httpServers struct {
+	public  *httpServer
+	admin   *httpServer
+	metrics *httpServer
+	healthz *httpServer
 }
 
 func (s Server) ID() string {
-	return s.app
+	return s.id
 }
 
 func (s Server) Config() *config.Config {
@@ -236,7 +238,7 @@ func (s Server) DB() *database.DB {
 	return s.db
 }
 
-func (s Server) Metrics() prometheus.Registerer {
+func (s Server) Prometheus() prometheus.Registerer {
 	return s.prometheus
 }
 
@@ -244,29 +246,30 @@ func (s *Server) Start(ctx context.Context) error {
 	sig := make(chan os.Signal, 1)
 
 	signal.Notify(sig, os.Interrupt)
+
 	s.logger.Infof("PID: %d", os.Getpid())
 	s.logger.Infof("OS: %v/%v", runtime.GOOS, runtime.GOARCH)
 
 	g := new(errgroup.Group)
 
 	g.Go(func() error {
-		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
-		return s.startHTTPServer(s.publicServer)
+		s.logger.Infof("Starting public server at %v", s.public.Addr)
+		return s.startHTTPServer(s.public)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
-		return s.startHTTPServer(s.adminServer)
+		s.logger.Infof("Starting admin at %v", s.admin.Addr)
+		return s.startHTTPServer(s.admin)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
-		return s.startHTTPServer(s.metricsServer)
+		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
+		return s.startHTTPServer(s.metrics)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
-		return s.startHTTPServer(s.healthzServer)
+		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
+		return s.startHTTPServer(s.healthz)
 	})
 
 	go func() {
@@ -277,52 +280,47 @@ func (s *Server) Start(ctx context.Context) error {
 
 	defer func() {
 		s.logger.Info("Tearing down public server")
-		if err := s.shutdownHTTPServer(s.publicServer); err != nil {
+		if err := s.shutdownHTTPServer(s.public); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down admin server")
-		if err := s.shutdownHTTPServer(s.adminServer); err != nil {
+		if err := s.shutdownHTTPServer(s.admin); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down metrics server")
-		if err := s.shutdownHTTPServer(s.metricsServer); err != nil {
+		if err := s.shutdownHTTPServer(s.metrics); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down healthz server")
-		if err := s.shutdownHTTPServer(s.healthzServer); err != nil {
+		if err := s.shutdownHTTPServer(s.healthz); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down cache provider")
-		if err := s.releaseCache(); err != nil {
-			s.logger.Error(err)
-		}
-
-		s.logger.Info("Tearing down queue provider")
-		if err := s.releaseQueue(); err != nil {
+		if err := release(s.cache); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down pubsub provider")
-		if err := s.releasePubsub(); err != nil {
+		if err := release(s.pubsub); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down queue provider")
-		if err := s.releaseQueue(); err != nil {
+		if err := release(s.queue); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down database provider")
-		if err := s.releaseDB(); err != nil {
+		if err := release(s.db); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down logger provider")
-		if err := s.releaseLogger(); err != nil {
+		if err := release(s.logger); err != nil {
 			s.logger.Error(err)
 		}
 	}()
@@ -370,49 +368,17 @@ func (s *Server) shutdownHTTPServer(srv *httpServer) error {
 	return nil
 }
 
-func (s *Server) releaseCache() error {
-	if c, ok := s.cache.(io.Closer); ok {
-		return c.Close()
-	}
-
-	return nil
-}
-
-func (s *Server) releasePubsub() error {
-	if c, ok := s.pubsub.(io.Closer); ok {
-		return c.Close()
-	}
-
-	return nil
-}
-
-func (s *Server) releaseQueue() error {
-	if c, ok := s.queue.(io.Closer); ok {
-		return c.Close()
-	}
-
-	return nil
-}
-
-func (s *Server) releaseLogger() error {
-	if c, ok := s.logger.(io.Closer); ok {
-		return c.Close()
-	}
-
-	return nil
-}
-
-func (s *Server) releaseDB() error {
-	if s.db != nil {
-		return s.db.Close()
-	}
-
-	return nil
-}
-
 func (s *Server) releaseOtel() error {
 	if s.db != nil {
 		return s.tracing.Shutdown(context.Background())
+	}
+
+	return nil
+}
+
+func release(v interface{}) error {
+	if c, ok := v.(io.Closer); ok {
+		return c.Close()
 	}
 
 	return nil

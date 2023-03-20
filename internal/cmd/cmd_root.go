@@ -38,6 +38,10 @@ const (
 
 var v = viper.New()
 
+func Execute() error {
+	return New().Execute()
+}
+
 func New() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "x-api",

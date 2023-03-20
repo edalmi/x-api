@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -10,7 +11,6 @@ import (
 	"runtime"
 	"time"
 
-	"errors"
 	"github.com/edalmi/x-api/caching"
 	"github.com/edalmi/x-api/config"
 	"github.com/edalmi/x-api/database"

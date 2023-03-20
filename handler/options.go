@@ -9,12 +9,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type HandlerOptions interface {
+type HandlerOpts interface {
 	Queue() queue.Queue
 	Pubsub() pubsub.Pubsub
 	Cache() caching.Cache
 	Logger() logging.Logger
-	Metrics() prometheus.Registerer
+	Prometheus() prometheus.Registerer
 	DB() *database.DB
 	ID() string
 }

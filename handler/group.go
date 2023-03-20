@@ -7,12 +7,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewGroupHandler(_ HandlerOptions) *GroupHandler {
+func NewGroupHandler(_ HandlerOpts) *GroupHandler {
 	return &GroupHandler{}
 }
 
 type GroupHandler struct {
-	opts HandlerOptions
+	opts HandlerOpts
 }
 
 func (u GroupHandler) CreateGroup(rw http.ResponseWriter, r *http.Request) {}

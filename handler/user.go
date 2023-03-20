@@ -14,7 +14,7 @@ import (
 
 var reqs int64
 
-func NewUserHandler(opts HandlerOptions) *UserHandler {
+func NewUserHandler(opts HandlerOpts) *UserHandler {
 	return &UserHandler{
 		UserMetrics: newUserMetrics(opts.ID(), opts.Metrics()),
 		Options:     opts,
@@ -23,7 +23,7 @@ func NewUserHandler(opts HandlerOptions) *UserHandler {
 
 type UserHandler struct {
 	UserMetrics UserMetrics
-	Options     HandlerOptions
+	Options     HandlerOpts
 }
 
 func (u *UserHandler) CreateUser(rw http.ResponseWriter, r *http.Request) {

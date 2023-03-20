@@ -136,7 +136,7 @@ func (s *Server) setupHealthzServer() error {
 		return err
 	}
 
-	s.healthz = srv
+	s.healthzServer = srv
 
 	return nil
 }
@@ -154,27 +154,27 @@ func (s *Server) setupMetrcisServer() error {
 		return err
 	}
 
-	s.metrics = srv
+	s.metricsServer = srv
 
 	return nil
 }
 
 func (s *Server) setupPublicServer() error {
 	var (
-		users  = handler.NewUserHandler(s)
-		groups = handler.NewGroupHandler(s)
+		usersHandler  = handler.NewUserHandler(s)
+		groupsHandler = handler.NewGroupHandler(s)
 	)
 
 	router := chi.NewRouter()
-	router.Mount("/users", users.Routes())
-	router.Mount("/groups", groups.Routes())
+	router.Mount("/users", usersHandler.Routes())
+	router.Mount("/groups", groupsHandler.Routes())
 
 	srv, err := setupHTTPServer(s.config.Serve.Public, router)
 	if err != nil {
 		return err
 	}
 
-	s.public = srv
+	s.publicServer = srv
 
 	return nil
 }
@@ -186,7 +186,7 @@ func (s *Server) setupAdminServer() error {
 		return err
 	}
 
-	s.admin = srv
+	s.adminServer = srv
 
 	return nil
 }
@@ -205,10 +205,10 @@ type Server struct {
 }
 
 type httpServers struct {
-	public  *httpServer
-	admin   *httpServer
-	metrics *httpServer
-	healthz *httpServer
+	publicServer  *httpServer
+	adminServer   *httpServer
+	metricsServer *httpServer
+	healthzServer *httpServer
 }
 
 func (s Server) ID() string {
@@ -254,23 +254,23 @@ func (s *Server) Start(ctx context.Context) error {
 	g := new(errgroup.Group)
 
 	g.Go(func() error {
-		s.logger.Infof("Starting public server at %v", s.public.Addr)
-		return s.startHTTPServer(s.public)
+		s.logger.Infof("Starting public server at %v", s.publicServer.Addr)
+		return s.startHTTPServer(s.publicServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting admin at %v", s.admin.Addr)
-		return s.startHTTPServer(s.admin)
+		s.logger.Infof("Starting admin at %v", s.adminServer.Addr)
+		return s.startHTTPServer(s.adminServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting metrics server at %v", s.metrics.Addr)
-		return s.startHTTPServer(s.metrics)
+		s.logger.Infof("Starting metrics server at %v", s.metricsServer.Addr)
+		return s.startHTTPServer(s.metricsServer)
 	})
 
 	g.Go(func() error {
-		s.logger.Infof("Starting healthz server at %v", s.healthz.Addr)
-		return s.startHTTPServer(s.healthz)
+		s.logger.Infof("Starting healthz server at %v", s.healthzServer.Addr)
+		return s.startHTTPServer(s.healthzServer)
 	})
 
 	go func() {
@@ -281,22 +281,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 	defer func() {
 		s.logger.Info("Tearing down public server")
-		if err := s.shutdownHTTPServer(s.public); err != nil {
+		if err := s.shutdownHTTPServer(s.publicServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down admin server")
-		if err := s.shutdownHTTPServer(s.admin); err != nil {
+		if err := s.shutdownHTTPServer(s.adminServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down metrics server")
-		if err := s.shutdownHTTPServer(s.metrics); err != nil {
+		if err := s.shutdownHTTPServer(s.metricsServer); err != nil {
 			s.logger.Error(err)
 		}
 
 		s.logger.Info("Tearing down healthz server")
-		if err := s.shutdownHTTPServer(s.healthz); err != nil {
+		if err := s.shutdownHTTPServer(s.healthzServer); err != nil {
 			s.logger.Error(err)
 		}
 

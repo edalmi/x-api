@@ -17,11 +17,11 @@ type Cache struct {
 	client *memcache.Client
 }
 
-func (c Cache) Set(ctx context.Context, key, value string, dur time.Duration) error {
+func (c Cache) Set(ctx context.Context, key, value string, expiration time.Duration) error {
 	return c.client.Set(&memcache.Item{
 		Key:        key,
 		Value:      []byte(value),
-		Expiration: int32(dur),
+		Expiration: int32(expiration),
 	})
 }
 

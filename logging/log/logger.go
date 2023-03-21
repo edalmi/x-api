@@ -3,6 +3,8 @@ package log
 import (
 	"fmt"
 	"log"
+
+	"github.com/edalmi/x-api/logging"
 )
 
 func New(l *log.Logger) *Logger {
@@ -45,4 +47,8 @@ func (l *Logger) Error(v ...interface{}) {
 
 func (l *Logger) Errorf(f string, v ...interface{}) {
 	l.logger.Println("ERROR", fmt.Sprintf(f, v...))
+}
+
+func (l *Logger) WithFields(f logging.Fields) logging.Logger {
+	return l
 }

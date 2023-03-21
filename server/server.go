@@ -363,8 +363,8 @@ func (s Server) startHTTPServer(srv *httpServer) error {
 	return err
 }
 
-func (s *Server) shutdownHTTPServer(srv *httpServer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func (s *Server) shutdownHTTPServer(srv *httpServer, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

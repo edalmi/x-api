@@ -3,6 +3,7 @@ package zap
 import (
 	"fmt"
 
+	"github.com/edalmi/x-api/logging"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -47,4 +48,20 @@ func (l Logger) Error(v ...interface{}) {
 
 func (l Logger) Errorf(f string, v ...interface{}) {
 	l.logger.Log(zapcore.ErrorLevel, fmt.Sprintf(f, v...))
+}
+
+func (l Logger) WithFields(f logging.Fields) logging.Logger {
+	var fields []zap.Field
+
+	for k, v := range f {
+		fields = append(fields, zap.Field{
+			Type:   zapcore.StringType,
+			Key:    k,
+			String: v,
+		})
+	}
+
+	return &Logger{
+		logger: l.logger.With(fields...),
+	}
 }

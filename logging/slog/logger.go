@@ -3,6 +3,7 @@ package slog
 import (
 	"fmt"
 
+	"github.com/edalmi/x-api/logging"
 	"golang.org/x/exp/slog"
 )
 
@@ -46,4 +47,8 @@ func (l Logger) Error(v ...interface{}) {
 
 func (l Logger) Errorf(f string, v ...interface{}) {
 	l.logger.Error(fmt.Sprintf(f, v...))
+}
+
+func (l *Logger) WithFields(f logging.Fields) logging.Logger {
+	return l
 }

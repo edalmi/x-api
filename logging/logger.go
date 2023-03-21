@@ -9,4 +9,7 @@ type Logger interface {
 	Warnf(f string, v ...interface{})
 	Error(v ...interface{})
 	Errorf(f string, v ...interface{})
+	WithFields(fields Fields) Logger
 }
+
+type Fields map[string]string

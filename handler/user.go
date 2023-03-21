@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/edalmi/x-api/logging"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,7 +17,7 @@ var reqs int64
 
 func NewUserHandler(opts HandlerOpts) *UserHandler {
 	return &UserHandler{
-		UserMetrics: newUserMetrics(opts.ID(), opts.Metrics()),
+		UserMetrics: newUserMetrics(opts.ID(), opts.Prometheus()),
 		Options:     opts,
 	}
 }
@@ -39,7 +40,10 @@ func (u UserHandler) ListUsers(rw http.ResponseWriter, r *http.Request) {
 	_, span := otel.Tracer(u.Options.ID()).Start(r.Context(), "users.ListUsers")
 	defer span.End()
 
-	u.Options.Logger().Info(r.URL.Path)
+	u.Options.Logger().WithFields(logging.Fields{
+		"app": "/users",
+		"req": "1",
+	}).Info(r.URL.Path)
 
 	time.Sleep(3 * time.Second)
 
